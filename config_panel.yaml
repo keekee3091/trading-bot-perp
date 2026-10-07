@@ -1,0 +1,24 @@
+# Hypothèse 1 (horizon long), PANEL : paramètres FIXES communs à tous les instruments.
+# Fichier figé avant tout résultat ; la grille est dans results/grid_panel.txt (voir CLAUDE.md).
+# S'applique après config.yaml (et avant l'overlay data/<SYM>.instrument.yaml pour instrument.*).
+
+sample_seconds: 300            # un point d'historique toutes les 5 min (lookback jusqu'à 1 j)
+vol_window_seconds: 86400
+min_z_score: 0.8
+min_edge: 0.05
+
+sl_pct_floor: 0.005
+sl_pct_cap: 0.10
+tp_rr: 2
+trailing_activation_pct: 0     # trailing désactivé
+time_exit_min_pnl_pct: -1      # la sortie temporelle est inconditionnelle (pas de perdants gardés)
+max_hold_seconds: 172800       # filet de sécurité à 2 jours, au-delà de toute durée de la grille
+
+cooldown_after_loss_s: 3600
+cooldown_after_win_s: 3600
+max_consecutive_losses: 0
+max_entries_per_hour: 0
+max_entries_per_day: 3         # au plus quelques trades par jour et par instrument
+
+kelly_enabled: 0
+max_session_loss_pct: 0        # halt désactivé pendant la validation (halt_report_pct le signale)

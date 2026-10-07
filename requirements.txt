@@ -1,0 +1,8 @@
+# Coeur (modele, signal, risk, backtest, paper) : stdlib uniquement
+pyyaml>=6.0
+loguru>=0.7.0
+# Live (feeds WebSocket + execution)
+aiohttp>=3.9.0
+websockets>=12.0
+# polymarket   # SDK Python officiel (AsyncSecureClient), a activer pour le live
+pytest>=8.0

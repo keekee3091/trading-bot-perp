@@ -1,0 +1,1 @@
+SPCX-USD iid=9   klines 2026-06-15 -> 2026-10-05 = 112.3 jours, 161754 minutes dont 29736 avec trades (18.4 %), funding 2418 points / 112.2 jours, levier max 10, frais liq 0.005

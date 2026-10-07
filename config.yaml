@@ -1,0 +1,82 @@
+# Bot perps Polymarket. Secrets dans .env, jamais ici.
+symbol: BTC-USD            # resolu en instrument_id via /v1/info/instruments
+mode: paper                # paper | live (live non implemente : voir include/perp/live_exchange.hpp)
+equity: 1000               # equity de depart (paper / backtest)
+
+# ── Signal (z-score momentum -> sigmoide), herite du bot Up/Down ──
+signal_threshold: 0.70
+signal_lookback_seconds: 300
+vol_window_seconds: 900
+signal_sensitivity: 1.5
+sample_seconds: 5
+min_z_score: 0.8
+ref_weight: 0.6            # poids du prix de reference externe (Binance) si fourni
+z_cap: 4.0
+ref_symbol: BTCUSDT        # reference Binance spot optionnelle (paper live)
+
+# ── Edge : proba du signal vs breakeven apres couts ──
+min_edge: 0.05
+max_spread_pct: 0.001
+
+# ── Stops (en % du prix sous-jacent, independants du levier) ──
+sl_pct_floor: 0.003
+sl_pct_cap: 0.03
+sl_vol_mult: 1.0           # SL = max(plancher, mult x vol a l'horizon du lookback)
+tp_rr: 1.5                 # TP = tp_rr x distance SL
+trailing_activation_pct: 0.006
+trailing_distance_pct: 0.003
+min_hold_seconds: 20
+emergency_sl_mult: 1.5
+time_exit_seconds: 600
+time_exit_min_pnl_pct: 0.0
+max_hold_seconds: 1800
+liq_guard_pct: 0.002
+
+# ── Risque / sizing ──
+risk_per_trade_pct: 0.01   # perte a l'SL = 1 % de l'equity (avant Kelly)
+leverage: 5
+liq_buffer_mult: 2.0       # liquidation a >= 2x la distance SL
+max_account_leverage: 3.0
+max_notional_per_trade: 5000
+max_margin_pct: 0.5
+kelly_enabled: true
+kelly_window: 30
+kelly_scaling: 0.5
+kelly_base_fraction: 0.25  # fraction de Kelly (apres scaling) pour laquelle le multiplicateur vaut 1
+kelly_min_mult: 0.3
+kelly_max_mult: 1.5
+
+# ── Circuit breakers ──
+cooldown_after_loss_s: 60
+cooldown_after_win_s: 0
+max_consecutive_losses: 3
+loss_streak_pause_s: 900
+max_session_loss_pct: 0.10
+daily_loss_lock_pct: 0.05
+daily_profit_lock_pct: 0
+max_entries_per_hour: 12
+max_net_exposure_pct: 2.0  # |long - short| notionnel / equity
+max_gross_exposure_pct: 4.0
+trading_hours_utc_start: null
+trading_hours_utc_end: null
+
+# ── Couts simules (paper / backtest) ──
+slippage_pct: 0.0002
+default_spread_pct: 0.0002
+# taker_fee: 0.0004        # decommenter pour forcer ; sinon instrument.taker_fee
+
+backtest:
+  funding_rate_per_hour: 0.00001   # constant sur toute la periode (hypothese)
+
+# ── Instrument (hypotheses locales, a remplacer par /v1/info/instruments) ──
+mmr_factor: 0.5            # marge de maintenance par defaut = mmr_factor / levier max
+instrument:
+  max_leverage: 20
+  min_notional: 10
+  liquidation_fee: 0.005
+  taker_fee: 0.0004
+  maker_fee: 0.000125
+  mmr: 0                   # 0 = mmr_factor / max_leverage ; sinon taux fixe (risk tier reel)
+  qty_decimals: 4
+
+poll_seconds: 2            # couche Python paper uniquement
