@@ -21,6 +21,7 @@ Aucun ordre réel n'a jamais été passé.
 | Grille large (étage 1 puis 2) | 67 variables (flux d'ordres, prix, régime, funding et base, calendrier, inter-actifs, Binance) x 6 horizons de 1 min à 1 jour x 3 groupes (crypto, indices et matières premières, actions liquides) | klines 1m, trades, funding, marks, Binance 1 s, avant le gel du 2026-09-28 ; holdout 2026-09-28 -> 2026-10-05 | 894 cellules planifiées, 473 sous-puissantes, 403 testées | 55 passent le FDR (BH 5 %), 42 stables, **1** avec écart de déciles > coût ; étage 2 sur cette cellule : net **-11.4 bps par trade** (601 trades, t = -12.3) | bat 12 % des entrées aléatoires ; placebos calibrés (4 % de p < 0.05, 0 découverte) |
 | Actions (Tiingo + perp) | H1 écart de réouverture, H2 coupe transversale quotidienne 1980-2018, H3 nuit contre séance | Tiingo ajusté (34 actions, biais de survie), klines perp 18 actions | 41 cellules, 28 sous-puissantes, 13 testées | 5 FDR, 4 stables, **0** avec ratio effet / coût > 1 (prime de nuit +9.5 bps contre 16.8 de coût) ; pas d'étage 2 | placebos calibrés (lambda 1) |
 | H4 résultats trimestriels (SEC + Tiingo) | dérive après annonce, effet avant annonce, réaction du perp | 1 500 8-K Item 2.02, 28 actions, 587 événements de découverte | 15 cellules, 15 sous-puissantes | non testable (MDE 538 à 1 054 bps) ; H4c descriptif : le perp prend l'annonce avant l'ouverture | n.a. |
+| P1 signaux lents + ordres passifs | inversion en coupe transversale (S1) et prime de nuit (S2), exécutés en post-only (maker 1.25 bps) | Tiingo ajusté (longue histoire, effet exécutable), 22 jours de trades perp pour les fills | 5 signaux x 5 à 7 politiques x 4 bornes | S1 non exécutable (-8.4 bps contre +7.1 clôture-clôture) ; S2 : +5 à +7 bps net maker mais sélection adverse de 31 bps contre 5 tolérés, net par signal conservateur -11 à +2 bps, intervalles contenant zéro | non concluant (optimiste positive seule) |
 
 Correction pour tests multiples : Bonferroni sur le t du rendement en test, **M = 9** évaluations de test d'une
 hypothèse d'edge dans le projet (A : 3, B : 1, market making : 1, C : 1, D : 1, E : 1, grille large : 1). Aucune famille n'a un rendement
@@ -113,6 +114,9 @@ D » de `CLAUDE.md` ; rapports bruts dans `results/`.
 
 - **H4 (`docs/H4_REPORT.md`).** Avec 27 actions et 587 événements de découverte, les rendements à 5-20 jours après annonce ont un écart-type de plusieurs centaines de bps : on ne détecterait que des effets supérieurs à ~500 bps. La dérive après annonce documentée (100 à 300 bps)
   n'est donc ni confirmée ni infirmée. Sur les nuits d'annonce après clôture, le perp (qui cote 24 h sur 24) prend déjà presque tout l'écart d'ouverture (12 événements).
+
+- **P1 (`docs/P1_REPORT.md`).** L'inversion à 5 jours (7.1 bps par jour clôture-clôture) est un effet de l'écart de nuit : exécutable (entrée à l'ouverture) elle vaut -8.4 bps. La prime de nuit des actions (+9.5 bps) se joue entre 15h55 et 9h35 et reste exécutable : en ordres maker son net serait de +5 à +7 bps par nuit,
+  mais les actions perp sont trop fines : 4 à 13 % d'exécution passive, et la sélection adverse après un fill est de -24 à -32 bps à 10 minutes, 5 fois la tolérance : le net conservateur par signal émis va de -11 à +2 bps, intervalles contenant zéro.
 
 ## Ce qui justifierait une reprise
 

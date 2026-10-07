@@ -26,6 +26,7 @@ lève une exception, tant que backtest puis paper n'ont pas montré un Sharpe po
 | 15. Famille D : décalage avec Binance, crypto (`tools/leadlag_study.py`, `tools/fetch_binance.py`) | fait, négatif (« rien à voir ») |
 | 16. Famille E : momentum de séries temporelles sur sous-jacents non crypto (`tools/tsmom_study.py`, `tools/fetch_underlying.py`) | fait, négatif (4 critères sur 7 échouent) |
 | 17. Note de décision (`docs/DECISION_NOTE.md`) | mise à jour |
+| 22. P1 signaux lents + exécution passive (`tools/p1_study.py`, `tools/passive_fills.py`) | **fait : aucun signal positif et robuste** (S1 non exécutable : -8.4 bps ; S2 prime de nuit : sélection adverse 5 fois trop forte), rapport `docs/P1_REPORT.md` |
 | 21. H4 résultats trimestriels (SEC EDGAR + Tiingo, `tools/fetch_sec.py`, `tools/earnings_study.py`) | **fait : non testable** (15 cellules sous-puissantes), H4c descriptif ; rapport `docs/H4_REPORT.md` |
 | 20. Actions (Tiingo + perp) : H1 écart de réouverture, H2 coupe transversale quotidienne, H3 nuit contre séance (`tools/fetch_tiingo.py`, `tools/stocks_study.py`) | **fait : négatif à l'étage 1** (13 cellules testées sur 41, 0 avec ratio effet / coût > 1), rapport `docs/ACTIONS_REPORT.md` |
 | 19. Grille d'hypothèses large : étage 1 (`tools/grid_stage1.py`, 894 cellules planifiées, 403 testées) et étage 2 (`tools/grid_stage2.py`) | **fait : négatif** (1 cellule passe l'étage 1, net -11.4 bps par trade au holdout), rapport `docs/ETAGE1_REPORT.md` |
@@ -325,7 +326,7 @@ tests/                 assert-based, check.hpp (CHECK_NEAR), un exécutable par 
 legacy_py/             archive du premier jet Python, non testé, ne pas compléter
 tools/                 fetch_klines, survey_universe, sessions, signal_diagnostic, funding_diagnostic,
                        panel_stats, recorder, fetch_trades, side_semantics, premium_study, leadlag_study,
-                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study, fetch_sec, earnings_study (stdlib uniquement) ;
+                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study, fetch_sec, earnings_study, p1_study, passive_fills (stdlib uniquement) ;
                        mm_economics : ABANDONNÉ (quotation passive)
 data/                  klines, funding, overlays instrument (CSV ignorés par git) ; data/under/ : sous-jacents longs ;
                        data/live/ : enregistreur ;
@@ -1377,6 +1378,79 @@ pas de market making, aucun signal retourné après coup.
 Rapport : `docs/H4_REPORT.md` ; fichiers agrégés `results/earnings_*.{csv,json,txt,svg}` (aucune donnée brute Tiingo ni SEC redistribuée). **1 500 événements 8-K Item 2.02 (28 actions)**, 1 229 retenus après classement, **587 avec fenêtres complètes avant 2019 (AMC 576, BMO 11)**.
 **Les 15 cellules H4a et H4b sont sous-puissantes (MDE de 538 à 1 054 bps contre 47 à 173 bps) : H4 n'est pas testable avec cet univers.** Aucun test, FDR vide, aucun étage 2. Le test 2019-2026 est intact, M reste à 9. H4c (exploratoire, perp) : sur 12 nuits d'annonce AMC dans les 70 jours de perp, le mouvement hors
 séance du perp explique l'écart d'ouverture réel presque entièrement (bêta 0.98, R² 1.00, écart-type du gap 844 bps) contre bêta 0.66 et R² 0.66 les autres nuits : le perp prend l'annonce avant l'ouverture (il cote 24 heures sur 24) ; 12 événements : indicatif seulement. Pas de BMO dans la fenêtre perp.
+
+## Pré-enregistrement : P1, signaux lents et exécution passive, écrit AVANT tout résultat
+
+Écrit le 2026-10-09, avant `tools/p1_study.py` et toute mesure P1. Cadre : aucun ordre réel, `LiveExchange` reste un stub, aucun signal retourné après coup, pas de nouvelle recherche de signal. Les phases A à E, grille large, actions et H4 sont terminées
+(H4 non testable) ; P1 agit sur le COÛT : ordres post-only maker (1.25 bps, pas de franchissement du spread) contre taker (4 bps + 2 bps de slippage + spread payé implicitement).
+
+### Signaux (fixés et listés avant tout calcul, avec le chiffre qui les justifie)
+
+- **S1 inversion en coupe transversale des actions** (34 titres, au moins 10 par date, quintiles : long du quintile le plus bas, short du plus haut, jamais retourné après coup ; signe négatif de l'IC mesuré dans la phase actions : `mom_5` q = 0.044, 7.1 bps par jour bruts contre 12.0 de coût taker ; `mom_1` q = 0.016 mais écart de quintiles +0.5 bps, 25.0 de coût) :
+  **S1a** : rendement de 1 jour, tenu 1 jour ; **S1b** : rendement de 5 jours, tenu 1 jour (la cellule observée : 7.1 bps par jour) ; **S1c** : rendement de 5 jours, tenu 5 jours (entrée J, sortie J+4).
+- **S2 tout signal des phases précédentes avec rapport effet / coût taker > 0.4 ET horizon >= 1 heure ET significatif (BH q <= 5 %) dans sa phase** (lecture explicite : un « signal » est un effet distinguable de zéro dans sa propre phase) :
+  **S2a** : acheter chaque action à la clôture et sortir à l'ouverture suivante (prime de nuit, phase actions H3, toutes nuits : +9.5 bps par nuit, z = 8.7, q = 4e-17, ratio 0.57) ; **S2b** : idem les nuits de semaine seulement (+10.2 bps, ratio 0.61). Durée de funding exacte : 17.5 h en semaine, 65.5 h
+  le week-end, soit 27.1 h en moyenne sur toutes les nuits (la phase actions avait compté 20 h : écart de 0.4 bps, sans conséquence sur ses conclusions).
+  **Listés et non simulés** (justification chiffrée) : `resid_15` idx_cmd 60 min (grille large : ratio 0.52, q = 0.040, mais instable sur les plis et sans historique intrajournalier long) ; non significatifs dans leur phase malgré un rapport > 0.4 : `resid_60` idx_cmd 60 min (0.85, q = 0.115), `resid_240` idx_cmd (0.60,
+  q = 0.354), `rn_60` idx_cmd (0.43, q = 0.38), `mom_20` quotidien (0.54, q = 0.51), `mom_60` quotidien (0.45, q = 0.23), séance du lundi (0.60, q = 0.16). Familles A à E : aucune cellule positive hors échantillon. Tout ce qui est plus rapide qu'une heure (flux d'ordres, Binance, inter-actifs crypto) est exclu :
+  la sélection adverse y est trop forte.
+
+### Cohérence signal / exécution (le point de conception critique)
+
+- L'effet de 7.1 bps est mesuré de clôture à clôture ; il inclut l'écart de nuit, qu'une exécution passive à l'ouverture ne capte pas. Effet **exécutable** : signal calculé à la clôture de J-1, entrée au premier prix de séance **après 9h35 heure de l'Est** (jamais hors séance : oracle figé, spread non mesuré), sortie à **15h55** le jour J
+  (S1a, S1b) ou J+4 (S1c). Les horaires sont convertis en UTC avec l'heure d'été exacte (13:35 et 19:55 UTC en heure d'été, 14:35 et 20:55 sinon). **Longue histoire (Tiingo, quotidien)** : l'entrée est approchée par l'ouverture officielle (adjOpen) et la sortie par la clôture officielle (adjClose) : approximation d'une minute à cinq
+  minutes d'écart sur les 9h35 / 15h55, déclarée ; l'effet exécutable de la longue histoire est `ln(adjClose_{J+h-1} / adjOpen_J)`, rapporté À CÔTÉ de l'effet clôture-clôture `ln(adjClose / adjClose_{J-1})` ; **seul l'effet exécutable sert aux décisions**. L'exécution exacte (9h35 et 15h55) est mesurée sur le perp (partie B).
+  S2 : entrée à 15h55 (en séance) et sortie au premier prix après 9h35 le jour suivant ; sur la longue histoire l'effet exécutable est approché par clôture -> ouverture (prime de nuit déjà mesurée), l'exécution exacte étant mesurée sur le perp.
+
+### Partie A : effet exécutable sur la longue histoire (5 cellules soumises au FDR : S1a, S1b, S1c, S2a, S2b)
+
+- Données Tiingo ajustées, train jusqu'à 2012, validation 2013-2018, **test 2019 -> 2026 jamais lu et encore intact** (la phase actions n'a pas atteint son étage 2) ; la découverte n'utilise que l'avant-2019 ; le test n'est lu qu'une fois, seulement pour une cellule qui passe la partie A.
+- Statistique par cellule : série par date de l'effet exécutable d'un portefeuille long/short équipondéré (S1) ou de la moyenne transversale du rendement nocturne (S2), IC de rang rapporté ; coût maker = `4 x rotation x 1.25 bps` (S1, deux jambes fermées puis ouvertes) ou `2 x 1.25 bps + funding de la durée` (S2) ; **net = effet exécutable moins coût maker**.
+  Rapport effet / coût maker et effet / coût taker (`4 x rotation x 7.75`) rapportés. Erreur-type : jackknife par blocs de dates (environ un mois), 3 plis chronologiques. Test unilatéral « net > 0 », Benjamini-Hochberg 5 % sur les 5 cellules, p étalonnées par des placebos du **brut** (signal décalé de 30 à 250 jours, signal mélangé par blocs de 20 jours ;
+  signes aléatoires par blocs de 20 et 60 dates pour S2) : lambda = max(1, écart-type robuste de z).
+- **Une cellule passe la partie A** = BH q <= 5 % ET net > 0 dans chacun des 3 plis ET robuste au retrait d'un titre (S1 seulement). La puissance (erreur-type et écart minimal détectable du net) est rapportée ; **si l'intervalle de confiance du net est trop large pour trancher, c'est écrit : non concluant**.
+
+### Partie B : exécution passive sur le perp (période 2026-08-26 -> 2026-09-25, 22 jours de cotation, trades téléchargés pour les 29 actions ; holdout après le 2026-09-28 gelé)
+
+- **Simulateur de fills basé sur les trades** (`tools/passive_fills.py`, réutilise le modèle du market making abandonné) : meilleur bid / ask = proxy (dernier trade de l'agresseur opposé des 5 dernières minutes, pas d'ordre s'il n'y en a pas) ; achat limite servi par un agresseur vendeur qui imprime à p ou en dessous (**optimiste**, file nulle) ou
+  strictement en dessous après consommation de `Q` de notionnel qualifiant (**conservatrice**, file en notionnel : Q = 0, **1 000 (décisive)**, 5 000) ; ordres de 1 000 de notionnel, 1x, pas de fill partiel ; fill au prix limite. Taker : premier trade de l'agresseur du bon sens au moins 1 s après l'instant (au plus 5 minutes).
+- **Politiques d'entrée (grille fixée)** : (a) taker au premier prix de séance (base) ; (b) limite post-only annulée après T, **sans repli** (non exécuté = zéro position) ; (c) idem **avec repli taker** à l'échéance ; T = 30 minutes, 2 heures, fin de séance (15h55) pour S1 (décision 9h35) ; pour S2 : décision à 15h55 - T avec T = 30 minutes ou 2 heures
+  (l'échéance est toujours 15h55 ; « fin de séance » n'a pas de sens pour une entrée de nuit). Sortie : taker avec (a) ; sinon limite postée à 15h25 (S1) ou 9h35 (S2) valable 30 minutes avec **repli taker obligatoire** à l'échéance (une position ne peut pas rester ouverte).
+- **Cellules annoncées** : S1 (3 signaux) x 7 politiques + S2 (2 signaux) x 5 politiques = **31 cellules d'exécution**, chacune sous 4 variantes de borne (optimiste, conservatrice Q = 0, 1 000, 5 000) soit 124 estimations ; **décisive : conservatrice Q = 1 000**.
+- **Mesures** : taux d'exécution, délai moyen avant fill, **markout** (mouvement du mid proxy 1 min, 10 min et 1 h après le fill, positif = favorable : c'est la sélection adverse), PnL net par transaction exécutée ET **par signal émis (les non-exécutés comptent, à zéro)** ; frais maker 1.25 bps, taker 4 + 2 bps, **funding réel** (taux publiés) ;
+  intervalle de confiance à 95 % par bootstrap par jour d'entrée (2 000 tirages) ; longs et shorts séparés ; moitiés de la période ; **baseline aléatoire** (mêmes nombres de signaux par jour et par côté, titres tirés au hasard parmi ceux négociables, même politique, 200 tirages) ; **levier** 1x, 2x, 5x, volatilité cible 10 % et 20 %
+  appliqué à la politique de référence (c, T = 2 h) avec drawdown et liquidations (mèches des klines 1 minute).
+- **Puissance** : 22 jours, quelques dizaines à quelques centaines de signaux par cellule, écart-type du net par transaction de 100 à 300 bps : l'erreur-type du net moyen par signal est de l'ordre de 10 à 25 bps, **plus que les effets attendus** (quelques bps). Annoncé d'avance : la partie B ne tranchera pas sur le signe d'un net de quelques bps ;
+  elle sert à mesurer taux de fill, délai et markouts, et à calculer le **taux de fill et la qualité de fill minimaux** : sélection adverse maximale tolérée `A* = effet exécutable par transaction - coût maker - funding` (comparée aux markouts mesurés) et taux de fill minimal pour 1 bps par signal.
+
+### Critères et règle d'arrêt
+
+- **Positif robuste** (tous requis) : (1) partie A passée pour le signal ; (2) borne **conservatrice** (Q = 1 000) : net par signal émis > 0 avec borne basse de l'intervalle à 95 % > 0, positif dans les deux moitiés de la période, longs et shorts non négatifs, bat >= 75 % des tirages aléatoires ; (3) confirmation **une fois** sur le holdout du perp (après le 2026-09-28)
+  et sur le test 2019-2026 (effet brut exécutable positif, une seule lecture) ; (4) Bonferroni sur le nombre de cellules d'exécution testées (31) et M mis à jour.
+- **Non concluant** : borne optimiste positive seule, ou conservatrice positive mais intervalle contenant zéro. **Négatif** : borne optimiste non positive. Dans tous les cas, **aucun code d'exécution** tant que ce n'est pas positif, robuste et significatif hors échantillon.
+- **M** : 9 aujourd'hui (A 3, B 1, MM 1, C 1, D 1, E 1, grille large 1) ; P1 ajoute au plus un finaliste par signal (5) s'il passe la partie A et la partie B : M annoncé = 9 + nombre de finalistes (aucun, donc 9, tant qu'aucun test hors échantillon n'est consommé).
+- **Limites annoncées** : biais de survie (univers actuel de Polymarket), historique perp court (22 jours de cotation, 4 à 6 % de minutes avec trades pour les actions récentes), spread hors séance non mesuré (aucune entrée ni sortie hors séance), pas d'historique de carnet (proxy par les trades), file d'attente modélisée.
+
+### Écarts déclarés au pré-enregistrement P1 (écrits avant la conclusion)
+
+1. **Coût de l'effet exécutable de S1** : le pré-enregistrement parlait d'un coût de rotation ; l'exécution exécutable (entrée à l'ouverture, sortie à la clôture chaque période) ferme et rouvre TOUTES les positions chaque période (la rotation vaut 1, l'écart de nuit n'étant plus porté) : coût maker 4 x 1.25 = 5.0 bps par période et par unité de jambe,
+   coût taker 4 x 7.75 = 31.0 bps. C'est une conséquence de la cohérence signal / exécution voulue, pas un changement de règle.
+2. **Modèle taker** : au premier lancement de la partie B (`results/p1_summary_run1.txt`, `p1_partB_run1.csv`), un ordre taker n'était « exécuté » que si un trade du bon sens s'imprimait dans les 5 minutes (taux d'exécution de 21 à 28 %, artefact : un taker s'exécute toujours contre le carnet). Corrigé : sans trade imprimé après l'instant,
+   repli sur le dernier trade de ce sens des 5 minutes précédentes (proxy périmé du meilleur prix opposé) ; sans trade récent, pas d'exécution (le taux taker reste de 44 à 52 % sur ces actions fines : il mesure la disponibilité d'un proxy de prix, pas la liquidité). Les conclusions sont les mêmes avant et après.
+3. **Baseline aléatoire de S2** : S2 achète toutes les actions négociables chaque nuit (règle de calendrier, aucune sélection) : le tirage de « mêmes nombres de signaux » redonne exactement le même ensemble, baseline dégénérée ; sans objet pour S2 (critère « bat 75 % des tirages » non applicable), appliquée à S1.
+4. **Intervalle Bonferroni** : borne basse du bootstrap par jour à 1 - 0.05 / 31 (5 000 tirages), ajoutée à l'intervalle à 95 %, car le critère (4) de la règle fixe la correction sur 31 cellules.
+
+## Résultats : P1, signaux lents et exécution passive (2026-10-09)
+
+Rapport : `docs/P1_REPORT.md` ; fichiers : `results/p1_partA.csv`, `p1_partB.csv`, `p1_summary.txt`. **Conclusion : AUCUN signal positif et robuste. Aucun code d'exécution.** Aucun test hors échantillon consommé (le test Tiingo 2019-2026 et le holdout perp du 2026-09-28 sont intacts), M reste à 9.
+- **Partie A, effet exécutable (longue histoire, avant 2019)** : **l'inversion S1 n'est pas exécutable** : l'effet clôture-clôture de 7.09 bps (S1b) devient **-8.40 bps** en exécutable (entrée à l'ouverture, sortie à la clôture ; z net = -3.5) : la totalité de l'inversion se joue dans l'écart de nuit, que l'on n'exécute pas ;
+  S1a -3.90 (clôture-clôture -0.53), S1c +6.93 bps ± 20.7 (non concluant). **S2 (prime de nuit) passe la partie A** : +9.55 bps (S2a) et +10.15 bps (S2b) bruts, **net du coût maker +5.35 et +6.56 bps par nuit** (z = 4.9 et 5.0, BH q ~ 0, positif dans les 3 plis).
+- **Partie B, exécution passive sur le perp (22 jours, 30 actions, borne conservatrice Q = 1 000)** : le taux d'exécution passif n'est que de **4 à 13 %** (délai 6 à 106 minutes) et la sélection adverse est très forte : markout à 10 minutes de **-24 à -32 bps** après un fill maker de S2 (-44 à -74 bps à 1 heure), alors que S2 ne tolère que **A\* = +5.35 et +6.56 bps** de sélection adverse
+  (effet par transaction moins coût maker) : un facteur 5 trop élevé. Net par signal émis (non-exécutés à zéro) de S2, conservatrice : T = 30 minutes avec repli taker **+2.15 bps** [-8.8, +16.2] (S2a) et +0.95 [-10.6, +17.5] (S2b), **tous les intervalles Bonferroni contiennent zéro** ; T = 2 heures : **-8.4 [-15.3, -1.3] et -11.1 [-18.5, -3.7]** (négatif significatif). La borne optimiste est positive à 30 minutes (+5.5 bps) : **non concluant**.
+  Taux de fill minimal pour 1 bps par signal : **impossible** (la sélection adverse observée dépasse la tolérée).
+- S1 sur 22 jours de perp : S1b est positif en exécutable (+10.4 bps par signal, conservatrice, intervalle à 95 % [1.2, 21.5], Bonferroni [-3.2, ...]) mais contredit les 25 ans de la partie A (-8.4 bps, z = -3.5) : bruit d'un échantillon de 22 jours (erreur-type de 10 à 35 bps par signal), pas un signal ; S1a négatif ; S1c [-17, +85] non concluant.
+- **Levier** (politique c, 2 h, descriptif) : S2a : 1x equity 0.982, 5x equity 0.915 avec drawdown de 9.2 %, aucune liquidation (le levier amplifie la perte) ; S1c : deux liquidations à 5x (drawdown 18 %).
+- **Limites** : biais de survie, historique perp court (22 jours de cotation, la puissance d'un net de quelques bps est nulle : erreur-type de 10 à 35 bps), spread hors séance non mesuré (jamais d'ordre hors séance), proxy du meilleur bid / ask par les trades, file d'attente modélisée, entrée de la longue histoire approchée par l'ouverture et la clôture officielles.
 
 ## Hypothèses restantes (non vérifiées)
 
