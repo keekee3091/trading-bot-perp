@@ -20,6 +20,7 @@ Aucun ordre réel n'a jamais été passé.
 | E. Momentum de séries temporelles, sous-jacents non crypto | momentum 1 à 12 mois long/short, pondéré par la volatilité, sur SP500 (proxy), NAS100, WTI, Brent, or, argent | historiques de 40 à 100 ans (FRED, French, Banque mondiale), coûts et funding Polymarket supposés | 16 | Sharpe +0.31 (+1.9 % par an, t = 1.07) contre +0.56 pour la volatilité égale long seul ; 4 critères sur 7 échouent | bat 58 % des signes aléatoires |
 | Grille large (étage 1 puis 2) | 67 variables (flux d'ordres, prix, régime, funding et base, calendrier, inter-actifs, Binance) x 6 horizons de 1 min à 1 jour x 3 groupes (crypto, indices et matières premières, actions liquides) | klines 1m, trades, funding, marks, Binance 1 s, avant le gel du 2026-09-28 ; holdout 2026-09-28 -> 2026-10-05 | 894 cellules planifiées, 473 sous-puissantes, 403 testées | 55 passent le FDR (BH 5 %), 42 stables, **1** avec écart de déciles > coût ; étage 2 sur cette cellule : net **-11.4 bps par trade** (601 trades, t = -12.3) | bat 12 % des entrées aléatoires ; placebos calibrés (4 % de p < 0.05, 0 découverte) |
 | Actions (Tiingo + perp) | H1 écart de réouverture, H2 coupe transversale quotidienne 1980-2018, H3 nuit contre séance | Tiingo ajusté (34 actions, biais de survie), klines perp 18 actions | 41 cellules, 28 sous-puissantes, 13 testées | 5 FDR, 4 stables, **0** avec ratio effet / coût > 1 (prime de nuit +9.5 bps contre 16.8 de coût) ; pas d'étage 2 | placebos calibrés (lambda 1) |
+| H4 résultats trimestriels (SEC + Tiingo) | dérive après annonce, effet avant annonce, réaction du perp | 1 500 8-K Item 2.02, 28 actions, 587 événements de découverte | 15 cellules, 15 sous-puissantes | non testable (MDE 538 à 1 054 bps) ; H4c descriptif : le perp prend l'annonce avant l'ouverture | n.a. |
 
 Correction pour tests multiples : Bonferroni sur le t du rendement en test, **M = 9** évaluations de test d'une
 hypothèse d'edge dans le projet (A : 3, B : 1, market making : 1, C : 1, D : 1, E : 1, grille large : 1). Aucune famille n'a un rendement
@@ -109,6 +110,9 @@ D » de `CLAUDE.md` ; rapports bruts dans `results/`.
 
 - **Actions (`docs/ACTIONS_REPORT.md`).** Le perp suit déjà l'écart d'ouverture de son sous-jacent (bêta 0.70, R² 0.71, 0.88 le week-end). La prime de nuit des actions américaines est réelle (+9.5 bps par nuit, z 8.7) mais inférieure
   au seuil de rentabilité de 16.8 bps (frais, slippage, spread, funding) ; l'inversion à 5 jours de la coupe transversale vaut 7 bps par jour contre 12 de rotation. Biais de survie : l'univers est celui d'aujourd'hui.
+
+- **H4 (`docs/H4_REPORT.md`).** Avec 27 actions et 587 événements de découverte, les rendements à 5-20 jours après annonce ont un écart-type de plusieurs centaines de bps : on ne détecterait que des effets supérieurs à ~500 bps. La dérive après annonce documentée (100 à 300 bps)
+  n'est donc ni confirmée ni infirmée. Sur les nuits d'annonce après clôture, le perp (qui cote 24 h sur 24) prend déjà presque tout l'écart d'ouverture (12 événements).
 
 ## Ce qui justifierait une reprise
 

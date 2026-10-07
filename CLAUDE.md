@@ -26,6 +26,7 @@ lève une exception, tant que backtest puis paper n'ont pas montré un Sharpe po
 | 15. Famille D : décalage avec Binance, crypto (`tools/leadlag_study.py`, `tools/fetch_binance.py`) | fait, négatif (« rien à voir ») |
 | 16. Famille E : momentum de séries temporelles sur sous-jacents non crypto (`tools/tsmom_study.py`, `tools/fetch_underlying.py`) | fait, négatif (4 critères sur 7 échouent) |
 | 17. Note de décision (`docs/DECISION_NOTE.md`) | mise à jour |
+| 21. H4 résultats trimestriels (SEC EDGAR + Tiingo, `tools/fetch_sec.py`, `tools/earnings_study.py`) | **fait : non testable** (15 cellules sous-puissantes), H4c descriptif ; rapport `docs/H4_REPORT.md` |
 | 20. Actions (Tiingo + perp) : H1 écart de réouverture, H2 coupe transversale quotidienne, H3 nuit contre séance (`tools/fetch_tiingo.py`, `tools/stocks_study.py`) | **fait : négatif à l'étage 1** (13 cellules testées sur 41, 0 avec ratio effet / coût > 1), rapport `docs/ACTIONS_REPORT.md` |
 | 19. Grille d'hypothèses large : étage 1 (`tools/grid_stage1.py`, 894 cellules planifiées, 403 testées) et étage 2 (`tools/grid_stage2.py`) | **fait : négatif** (1 cellule passe l'étage 1, net -11.4 bps par trade au holdout), rapport `docs/ETAGE1_REPORT.md` |
 | 18. `perp_paper` + `tools/paper_runner.py` | **non écrit, volontairement** (règle d'arrêt) |
@@ -324,7 +325,7 @@ tests/                 assert-based, check.hpp (CHECK_NEAR), un exécutable par 
 legacy_py/             archive du premier jet Python, non testé, ne pas compléter
 tools/                 fetch_klines, survey_universe, sessions, signal_diagnostic, funding_diagnostic,
                        panel_stats, recorder, fetch_trades, side_semantics, premium_study, leadlag_study,
-                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study (stdlib uniquement) ;
+                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study, fetch_sec, earnings_study (stdlib uniquement) ;
                        mm_economics : ABANDONNÉ (quotation passive)
 data/                  klines, funding, overlays instrument (CSV ignorés par git) ; data/under/ : sous-jacents longs ;
                        data/live/ : enregistreur ;
@@ -1343,6 +1344,39 @@ Rapport : `docs/ACTIONS_REPORT.md` ; fichiers agrégés `results/stocks_*.{csv,j
 - **H2** (daily seulement, 5 et 21 jours sous-puissants) : inversion fine à 1 et 5 jours (IC -0.012 et -0.010, q 0.016 et 0.044), **7.1 bps par jour bruts contre 12 bps de rotation** (ratio 0.59) ; pas de momentum à 20, 60, 120 jours.
 - **H3** : la prime de nuit est réelle (**+9.5 bps par nuit, z = 8.7**, stable) mais le seuil de rentabilité est **16.8 bps** (ratio 0.57 ; 0.61 en semaine ; 0.38 le week-end) ; la séance est négative, non significative.
 - H4 (résultats trimestriels) sautée : EDGAR exige un contact réel dans l'en-tête (403 sinon). M reste à 9. Le test 2019-2026 et le holdout perp du 2026-09-28 sont intacts.
+
+## Pré-enregistrement : H4, résultats trimestriels (SEC EDGAR + Tiingo), écrit AVANT tout résultat
+
+Écrit le 2026-10-09, après `tools/fetch_sec.py`, `tools/earnings_study.py --mode plan` et `--mode power` (rendements seulement, aucune relation) et `tests/test_earnings_study.py`. Cadre : aucun ordre réel, `LiveExchange` reste un stub,
+pas de market making, aucun signal retourné après coup.
+
+- **Accès SEC** : conditions d'accès automatisé d'EDGAR en une ligne : un en-tête `User-Agent` déclarant un contact réel et au plus 10 requêtes par seconde, sinon blocage (403 constaté sans contact). Le contact est autorisé explicitement par l'utilisateur pour cet usage
+  et rien d'autre ; il est lu dans `.env` (`SEC_USER_AGENT`), jamais écrit dans le code, les tests, les rapports, les journaux, le dépôt ni les URL (les tests utilisent un agent factice et un réseau simulé). Téléchargeur : 5 requêtes par seconde, cache `data/sec/`
+  (ignoré par git, aucun téléchargement redondant), reprise avec attente croissante.
+- **Événements** : 8-K de forme exacte « 8-K » dont les items contiennent 2.02, via l'API de soumissions (page récente + fichiers historiques), CIK par `company_tickers.json`. **1 500 événements, 28 actions sur 34** ; 0 pour ARM, ASML, BABA, NBIS, SKHY, TSM (émetteurs étrangers :
+  6-K, pas de 8-K) ; STRC partage le CIK de MSTR (doublon exclu, 73 événements). Période 2004 -> 2026 (l'Item 2.02 existe depuis 2003).
+- **Classement** (heure d'acceptation EDGAR UTC convertie en heure de l'Est avec heure d'été exacte, bascule à 07:00 UTC le 2e dimanche de mars et 06:00 UTC le 1er dimanche de novembre) : avant 9:30 (BMO) : jour de réaction E = premier jour de cotation >= date de dépôt ; à partir de 16:00 (AMC) :
+  E = premier jour de cotation > date de dépôt ; dépôt un jour sans cotation : E = premier jour de cotation suivant ; **pendant la séance (9:30-16:00 un jour de cotation) : exclu, compté** (75). Fenêtre de réaction = clôture(E-1) -> clôture(E) (le signal est la réaction du prix elle-même, pas de consensus d'analystes).
+  **Ambigu et exclu, compté** : date de l'événement déclarée (`reportDate`) différente de la date de dépôt (le communiqué précède probablement le dépôt) : 123. Limite : l'heure d'acceptation du 8-K n'est pas l'heure du communiqué ; la date du trimestre n'est pas dans les métadonnées du 8-K (calendriers fiscaux différents) : non utilisée.
+  **Retenus : 1 229** ; avec fenêtres complètes (60 jours de volatilité avant, 20 jours après) **avant 2019 : 587 (AMC 576, BMO 11)** : les 8-K à l'ouverture sont rares dans cet univers (grandes capitalisations technologiques qui publient après la clôture).
+- **Grille (15 cellules soumises au FDR, plus 3 descriptives H4c)** : variable normalisée par la volatilité de l'action (écart-type des 60 rendements journaliers finissant en E-2), sous-groupes BMO, AMC et poolé.
+  **H4a** (9) : `z_ann` = rendement d'annonce / volatilité, contre le rendement cumulé de clôture(E) à clôture(E+h), h = 5, 10, 20 jours de cotation. **H4b** (6) : `pre_z` = rendement de J-5 à J-1 (clôture E-6 -> clôture E-1) / (volatilité x racine(5)), contre la réaction elle-même et le rendement cumulé de E à E+5.
+  **H4c** (3, perp, exploratoire, hors FDR) : nuits d'annonce AMC, BMO et poolées : bêta et R² de l'écart d'ouverture réel sur le mouvement du perp hors séance, contre les autres nuits (référence H1a : bêta 0.70, R² 0.71).
+- **Fenêtres et statistiques** : longue histoire, train jusqu'à 2012, validation 2013-2018, **test 2019 -> 2026 jamais lu à l'étage 1 et encore intact** (H2 et H3 n'ont pas atteint l'étage 2 : aucun recoupement avec un test déjà consommé ; si un candidat atteint l'étage 2, le même test servira
+  à plusieurs hypothèses : à déclarer). Étage 1 : événements avec toutes les fenêtres avant 2019-01-01 ; pseudo-instrument poolé (variable normalisée, IC de rang sur le rendement normalisé par `volatilité x racine(h)`, écart de déciles en bps bruts), jackknife par mois civil
+  (clusters de date), 3 plis chronologiques, robustesse au titre (retirer une action à la fois), ratio = |écart de déciles| / 15.5 bps (frais et slippage 12 + spread 3.5 ; funding de la durée reporté à part en rapport de jambe : 0.0625 bps par heure x 33.6 heures par jour de cotation). Biais de survie : univers actuel de Polymarket,
+  étiqueté.
+- **Puissance (règle fixée d'avance)** : MDE du spread de déciles `4.13 x sigma x racine(2 / (0.1 x n_eff))` (n_eff corrigé de l'effet de mois) contre 3 x (15.5 + funding de la durée) ; sous-puissant => non testé. **Résultat : les 15 cellules sont sous-puissantes** (BMO : 11 événements ;
+  AMC et poolé : 576 et 587 événements, MDE de 538 à 1 054 bps contre une limite de 47 à 173 bps : les rendements à 5-20 jours des actions concernées ont un écart-type de plusieurs centaines de bps). **H4a et H4b ne sont donc pas testables avec cet univers** (27 actions, 587 événements de découverte) : on ne détecte
+  pas un effet de moins de ~500 bps, donc pas la dérive après annonce documentée dans la littérature (de l'ordre de 100 à 300 bps). Le test 2019-2026 n'est pas touché. H4c est rapporté en descriptif exploratoire et sous-puissant (quelques dizaines d'événements dans les 40 à 70 jours de perp).
+- **FDR, placebos, étage 2** (appliqués si une cellule est testable) : Benjamini-Hochberg à 5 %, placebos « dates d'annonce décalées au hasard » (10 à 40 puis 41 à 120 jours de cotation, loin des vrais événements) ; contrôle positif synthétique (dérive injectée retrouvée avec le bon signe) ; étage 2 seulement pour
+  FDR + stable + robuste + ratio > 1, un finaliste par hypothèse, M = 9 + finalistes (annoncé : 9 aujourd'hui, car aucun test n'est consommé).
+
+## Résultats : H4, résultats trimestriels (2026-10-09)
+
+Rapport : `docs/H4_REPORT.md` ; fichiers agrégés `results/earnings_*.{csv,json,txt,svg}` (aucune donnée brute Tiingo ni SEC redistribuée). **1 500 événements 8-K Item 2.02 (28 actions)**, 1 229 retenus après classement, **587 avec fenêtres complètes avant 2019 (AMC 576, BMO 11)**.
+**Les 15 cellules H4a et H4b sont sous-puissantes (MDE de 538 à 1 054 bps contre 47 à 173 bps) : H4 n'est pas testable avec cet univers.** Aucun test, FDR vide, aucun étage 2. Le test 2019-2026 est intact, M reste à 9. H4c (exploratoire, perp) : sur 12 nuits d'annonce AMC dans les 70 jours de perp, le mouvement hors
+séance du perp explique l'écart d'ouverture réel presque entièrement (bêta 0.98, R² 1.00, écart-type du gap 844 bps) contre bêta 0.66 et R² 0.66 les autres nuits : le perp prend l'annonce avant l'ouverture (il cote 24 heures sur 24) ; 12 événements : indicatif seulement. Pas de BMO dans la fenêtre perp.
 
 ## Hypothèses restantes (non vérifiées)
 
