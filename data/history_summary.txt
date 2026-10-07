@@ -1,1 +1,13 @@
-SPCX-USD iid=9   klines 2026-06-15 -> 2026-10-05 = 112.3 jours, 161754 minutes dont 29736 avec trades (18.4 %), funding 2418 points / 112.2 jours, levier max 10, frais liq 0.005
+QCOM-USD iid=25  klines 2026-07-28 -> 2026-10-07 = 71.1 jours, 102390 minutes dont 7888 avec trades (7.7 %), funding 1702 points / 70.9 jours, levier max 10, frais liq 0.005
+HOOD-USD iid=36  klines 2026-08-07 -> 2026-10-07 = 61.7 jours, 88801 minutes dont 9230 avec trades (10.4 %), funding 1481 points / 61.7 jours, levier max 10, frais liq 0.005
+MSTR-USD iid=37  klines 2026-08-07 -> 2026-10-07 = 61.7 jours, 88843 minutes dont 11534 avec trades (13.0 %), funding 1481 points / 61.7 jours, levier max 10, frais liq 0.005
+STRC-USD iid=38  klines 2026-08-06 -> 2026-10-07 = 61.7 jours, 88906 minutes dont 3681 avec trades (4.1 %), funding 1486 points / 61.9 jours, levier max 10, frais liq 0.005
+CRCL-USD iid=39  klines 2026-08-07 -> 2026-10-07 = 61.7 jours, 88905 minutes dont 9927 avec trades (11.2 %), funding 1482 points / 61.7 jours, levier max 10, frais liq 0.005
+COIN-USD iid=40  klines 2026-08-07 -> 2026-10-07 = 61.5 jours, 88588 minutes dont 10109 avec trades (11.4 %), funding 1477 points / 61.5 jours, levier max 10, frais liq 0.005
+RKLB-USD iid=41  klines 2026-08-17 -> 2026-10-07 = 51.0 jours, 73504 minutes dont 5394 avec trades (7.3 %), funding 1225 points / 51.0 jours, levier max 10, frais liq 0.005
+LITE-USD iid=42  klines 2026-08-17 -> 2026-10-07 = 51.0 jours, 73495 minutes dont 5583 avec trades (7.6 %), funding 1225 points / 51.0 jours, levier max 10, frais liq 0.005
+NBIS-USD iid=43  klines 2026-08-17 -> 2026-10-07 = 51.1 jours, 73530 minutes dont 7565 avec trades (10.3 %), funding 1226 points / 51.0 jours, levier max 10, frais liq 0.005
+ORCL-USD iid=44  klines 2026-08-17 -> 2026-10-07 = 51.0 jours, 73376 minutes dont 4583 avec trades (6.2 %), funding 1226 points / 51.0 jours, levier max 10, frais liq 0.005
+PLTR-USD iid=45  klines 2026-08-17 -> 2026-10-07 = 51.0 jours, 73374 minutes dont 4392 avec trades (6.0 %), funding 1225 points / 51.0 jours, levier max 10, frais liq 0.005
+BABA-USD iid=47  klines 2026-08-20 -> 2026-10-07 = 48.4 jours, 69696 minutes dont 3347 avec trades (4.8 %), funding 1162 points / 48.4 jours, levier max 10, frais liq 0.005
+ZM-USD   iid=48  klines 2026-08-19 -> 2026-10-07 = 48.8 jours, 70214 minutes dont 3005 avec trades (4.3 %), funding 1162 points / 48.7 jours, levier max 10, frais liq 0.005

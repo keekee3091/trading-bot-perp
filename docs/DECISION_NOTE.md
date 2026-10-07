@@ -1,4 +1,4 @@
-# Note de décision : bot de perps Polymarket, état au 2026-10-05 (mise à jour : grille d'hypothèses large, étages 1 et 2)
+# Note de décision : bot de perps Polymarket, état au 2026-10-05 (mise à jour : actions, Tiingo + perp)
 
 ## Décision
 
@@ -19,6 +19,7 @@ Aucun ordre réel n'a jamais été passé.
 | D. Décalage avec Binance (crypto) | le perp suit Binance avec retard, capturable | trades perp + klines Binance 1 s, 5 instruments, 21 jours | 27 | net -9.8 bps par trade (234 trades), t = -8.43 | bat 63 % des tirages, mais chacun perd le coût |
 | E. Momentum de séries temporelles, sous-jacents non crypto | momentum 1 à 12 mois long/short, pondéré par la volatilité, sur SP500 (proxy), NAS100, WTI, Brent, or, argent | historiques de 40 à 100 ans (FRED, French, Banque mondiale), coûts et funding Polymarket supposés | 16 | Sharpe +0.31 (+1.9 % par an, t = 1.07) contre +0.56 pour la volatilité égale long seul ; 4 critères sur 7 échouent | bat 58 % des signes aléatoires |
 | Grille large (étage 1 puis 2) | 67 variables (flux d'ordres, prix, régime, funding et base, calendrier, inter-actifs, Binance) x 6 horizons de 1 min à 1 jour x 3 groupes (crypto, indices et matières premières, actions liquides) | klines 1m, trades, funding, marks, Binance 1 s, avant le gel du 2026-09-28 ; holdout 2026-09-28 -> 2026-10-05 | 894 cellules planifiées, 473 sous-puissantes, 403 testées | 55 passent le FDR (BH 5 %), 42 stables, **1** avec écart de déciles > coût ; étage 2 sur cette cellule : net **-11.4 bps par trade** (601 trades, t = -12.3) | bat 12 % des entrées aléatoires ; placebos calibrés (4 % de p < 0.05, 0 découverte) |
+| Actions (Tiingo + perp) | H1 écart de réouverture, H2 coupe transversale quotidienne 1980-2018, H3 nuit contre séance | Tiingo ajusté (34 actions, biais de survie), klines perp 18 actions | 41 cellules, 28 sous-puissantes, 13 testées | 5 FDR, 4 stables, **0** avec ratio effet / coût > 1 (prime de nuit +9.5 bps contre 16.8 de coût) ; pas d'étage 2 | placebos calibrés (lambda 1) |
 
 Correction pour tests multiples : Bonferroni sur le t du rendement en test, **M = 9** évaluations de test d'une
 hypothèse d'edge dans le projet (A : 3, B : 1, market making : 1, C : 1, D : 1, E : 1, grille large : 1). Aucune famille n'a un rendement
@@ -106,6 +107,9 @@ D » de `CLAUDE.md` ; rapports bruts dans `results/`.
   l'exécution sur prix imprimés le brut tombe à +0.65 bps (la plus grande part de l'effet mesuré était le rattrapage d'un dernier prix périmé). Le régime de volatilité et le calendrier ne prédisent rien.
   Les horizons de 1 h à 1 jour ne sont pas testables avec si peu d'historique (473 cellules sous-puissantes).
 
+- **Actions (`docs/ACTIONS_REPORT.md`).** Le perp suit déjà l'écart d'ouverture de son sous-jacent (bêta 0.70, R² 0.71, 0.88 le week-end). La prime de nuit des actions américaines est réelle (+9.5 bps par nuit, z 8.7) mais inférieure
+  au seuil de rentabilité de 16.8 bps (frais, slippage, spread, funding) ; l'inversion à 5 jours de la coupe transversale vaut 7 bps par jour contre 12 de rotation. Biais de survie : l'univers est celui d'aujourd'hui.
+
 ## Ce qui justifierait une reprise
 
 Aucune de ces conditions n'est remplie aujourd'hui ; elles sont écrites pour qu'une reprise ne soit pas arbitraire.
@@ -126,6 +130,8 @@ Aucune de ces conditions n'est remplie aujourd'hui ; elles sont écrites pour qu
 5. **Pour la famille E précisément** : reprendre si (a) un historique QUOTIDIEN de l'or, de l'argent, du S&P 500 et d'actions individuelles est obtenu légalement, (b) le même protocole (grille de 16 points, mêmes critères) donne un Sharpe net significatif après correction sur une fenêtre de test d'au moins 10 ans ET bat l'allocation à volatilité égale long seul, (c) le perp (et non son sous-jacent spot) est testé sur son propre historique, avec le funding réel mesuré sur au moins un an. Un usage défensif (réduction du risque en 2008) serait une question distincte, hors critères d'edge.
 6. **Pour la grille large** : (a) refaire l'étage 1 avec le carnet (F8, `tools/recorder.py`) une fois plusieurs semaines enregistrées, en réservant un holdout neuf ; (b) un historique d'au moins 1 an pour tester 1 h à 1 jour
    en puissance ; (c) mesurer la latence réelle de l'exécution : l'effet Binance existe mais s'éteint en quelques secondes.
+8. **Actions** : (a) plusieurs mois de perp de plus pour tester H1b (résidu de réouverture) avec une puissance suffisante, avec le holdout du 2026-09-28 intact ; (b) un coût plus bas (maker, hors périmètre) pour la prime de nuit ; (c) l'accord
+   pour un contact réel dans l'en-tête EDGAR (H4, résultats trimestriels).
 7. **Même protocole, mêmes critères d'arrêt**, et toute hypothèse nouvelle pré-enregistrée avant le premier résultat.
    Écrire `perp_paper` (JSON lines sur stdin et stdout) puis `tools/paper_runner.py` seulement si une famille remplit tous
    les critères sur du temps neuf.

@@ -17,3 +17,4 @@ data/live_probe/
 data/*.yaml
 *.xlsx
 legacy_py/__pycache__/
+data/tiingo/

@@ -26,6 +26,7 @@ lève une exception, tant que backtest puis paper n'ont pas montré un Sharpe po
 | 15. Famille D : décalage avec Binance, crypto (`tools/leadlag_study.py`, `tools/fetch_binance.py`) | fait, négatif (« rien à voir ») |
 | 16. Famille E : momentum de séries temporelles sur sous-jacents non crypto (`tools/tsmom_study.py`, `tools/fetch_underlying.py`) | fait, négatif (4 critères sur 7 échouent) |
 | 17. Note de décision (`docs/DECISION_NOTE.md`) | mise à jour |
+| 20. Actions (Tiingo + perp) : H1 écart de réouverture, H2 coupe transversale quotidienne, H3 nuit contre séance (`tools/fetch_tiingo.py`, `tools/stocks_study.py`) | **fait : négatif à l'étage 1** (13 cellules testées sur 41, 0 avec ratio effet / coût > 1), rapport `docs/ACTIONS_REPORT.md` |
 | 19. Grille d'hypothèses large : étage 1 (`tools/grid_stage1.py`, 894 cellules planifiées, 403 testées) et étage 2 (`tools/grid_stage2.py`) | **fait : négatif** (1 cellule passe l'étage 1, net -11.4 bps par trade au holdout), rapport `docs/ETAGE1_REPORT.md` |
 | 18. `perp_paper` + `tools/paper_runner.py` | **non écrit, volontairement** (règle d'arrêt) |
 
@@ -323,7 +324,7 @@ tests/                 assert-based, check.hpp (CHECK_NEAR), un exécutable par 
 legacy_py/             archive du premier jet Python, non testé, ne pas compléter
 tools/                 fetch_klines, survey_universe, sessions, signal_diagnostic, funding_diagnostic,
                        panel_stats, recorder, fetch_trades, side_semantics, premium_study, leadlag_study,
-                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2 (stdlib uniquement) ;
+                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study (stdlib uniquement) ;
                        mm_economics : ABANDONNÉ (quotation passive)
 data/                  klines, funding, overlays instrument (CSV ignorés par git) ; data/under/ : sous-jacents longs ;
                        data/live/ : enregistreur ;
@@ -1263,6 +1264,85 @@ calibrées. F3 (régime) et F5 (calendrier) : rien (|z| maximum 2.6). F4 : `basi
 entre déciles. F8 (carnet) : non testé. **Étage 2** (seule cellule, holdout 2026-09-28 -> 2026-10-05, touché une fois, exécution sur prix imprimés, frais 4 bps x2, slippage 2 bps x2, funding réel) : train -7.4 bps (932 trades),
 validation -9.0 (382), **test -11.4 bps par trade (601 trades, t = -12.3)**, brut +0.65 bps, bat 12 % des entrées aléatoires ; les 5 critères échouent ; levier : 1x equity 0.50, 5x equity 0.03, aucune
 liquidation, le levier amplifie la perte. L'effet de l'étage 1 (+8 bps côté haut) est surtout le rattrapage d'un dernier prix périmé. M passe à 9 pour Bonferroni.
+
+## Pré-enregistrement : actions (Tiingo + perp), écrit AVANT tout résultat
+
+Écrit le 2026-10-08, après `tools/fetch_tiingo.py`, `tools/stocks_study.py --mode plan` et `--mode power` (qui n'utilisent que des rendements, jamais une variable ni une relation) et après les tests de plomberie
+(`tests/test_stocks_study.py`). Cadre : aucun ordre réel, `LiveExchange` reste un stub, pas de market making, aucun signal retourné après coup. Un changement après coup invalide le test et doit être déclaré.
+
+### Données
+
+- **Tiingo, plan gratuit** : 50 requêtes par heure, 1 000 par jour, 500 symboles par mois ; **licence « Internal Use Only » : usage personnel, aucune donnée brute dans `docs/`, `results/` ni aucun fichier partagé**
+  (`data/tiingo/` est dans `.gitignore`, `results/` aussi ; `results/` ne contient que des statistiques agrégées). Clé dans `.env` (`TIINGO_API_KEY`, `.env` ignoré), envoyée en en-tête `Authorization`, jamais dans l'URL ni
+  dans un journal. `tools/fetch_tiingo.py` : reprenable (état `data/tiingo/_state.json`), limiteur glissant 48 par heure et 950 par jour, une requête par ticker (historique complet), reprise sur erreurs réseau et 429.
+- **Test d'AAPL avant tout le reste** : 11 544 jours du 1980-12-12 au 2026-10-06 ; prix **ajustés des splits et des dividendes** (champs `adjOpen/adjHigh/adjLow/adjClose/adjVolume`, plus `divCash`, `splitFactor`) :
+  5 splits (1987, 2000, 2005, 2014 : 7, 2020 : 4), 90 dividendes ; au jour d'un split le rendement ajusté est +1 % à +10 % alors que le brut vaut -47 % à -85 % ; au jour du dernier dividende (0.27 sur 313.33) le rapport
+  ajusté / brut saute de 0.99912 (attendu 1 - 0.27 / 313.33 = 0.99914) ; l'ajusté vaut le brut à la dernière date ; 248 à 254 jours par an ; seulement 3 trous de plus de 4 jours, tous des fermetures de marché réelles
+  (11 septembre 2001, 2 janvier 2007, ouragan Sandy 2012) ; aucun volume nul, aucune bougie ajustée incohérente. Le total return ajusté est utilisé pour toutes les rendements (l'écart d'ouverture `adjOpen_t / adjClose_{t-1}`
+  est un écart en total return, il inclut donc le dividende ex-date retiré ; le perp ne verse pas de dividende : écart négligeable à 1 jour, déclaré).
+- **Univers** (`results/stocks_universe.csv`, métadonnées agrégées) : 38 instruments de catégorie action de `/v1/info/instruments` (2026-10-08), ticker Tiingo = `base_asset` (GOOG-USD est GOOGL). **4 absents chez Tiingo, exclus** :
+  SKHYNIX, SAMSUNG, CXMT (non américains, non cotés aux États-Unis) et UNITREE (pré-IPO). **34 actions utilisables**, dont 26 avec plus de 5 ans de profondeur et 14 avec plus de 20 ans (INTC depuis 1980, AAPL 1980, AMD 1983, ORCL et MSFT 1986...) ; NBIS reprend l'historique de son prédécesseur (Yandex, 2011) ;
+  les récentes (SPCX 80 jours, SKHY 62, CBRS 100, ARM 3 ans, SNDK 1 an) alimentent le panneau mais peu d'historique. **Biais de survie : l'univers est celui des actions listées AUJOURD'HUI par Polymarket (grandes capitalisations liquides,
+  gagnantes récentes) ; tout résultat de longue histoire est biaisé en faveur des gagnantes et ce biais est étiqueté dans chaque rapport.** Perp : 13 klines 1 minute supplémentaires ont été téléchargés (QCOM, HOOD, MSTR, STRC, CRCL, COIN, RKLB, LITE,
+  NBIS, ORCL, PLTR, BABA, ZM, 48 à 59 jours, 4 à 6 % de minutes avec trades).
+- **Coûts** : frais taker 4 bps x2, slippage 2 bps x2, spread 3.5 bps en séance (relevé existant : 3 à 4 bps ; hors séance non mesuré, pas de test hors séance) soit **15.5 bps par aller-retour d'une action** ; coût d'un côté 7.75 bps (4 + 2 + demi-spread 1.75) ;
+  funding : composante d'intérêt fixe 6.25e-6 par heure (0.0625 bps par heure, 5.475 % par an) payée par les longs et reçue par les shorts (un portefeuille long/short équipondéré se compense), historique réel de funding existant seulement depuis juillet
+  2026 (non utilisé en étage 1, utilisé en étage 2 pour les périodes qu'il couvre). Rotation : coût d'un rebalancement long/short = 4 x rotation x 7.75 bps par unité de capital de jambe (rotation mesurée = part des titres changés, deux jambes, fermer puis ouvrir).
+
+### Les hypothèses et la grille (41 cellules planifiées soumises au FDR, plus 3 descriptives H1a)
+
+- **H1 écart de réouverture** (période perp, jours de séance, horaires par règle avec DST : 13:30 et 20:00 UTC en heure d'été américaine, 14:30 et 21:00 sinon ; jours de séance = jours de cotation du sous-jacent Tiingo).
+  Mouvement du perp hors séance `move` = ln(P(13:29) / P(clôture veille 19:59)), écart réel `gap` = ln(adjOpen_t / adjClose_{t-1}) (bps), P(m) = clôture de la barre d'une minute qui débute en m (connue à m+1) ; résidu `res = move - gap`.
+  **H1a (3 cellules descriptives, hors FDR)** : régression de `gap` sur `move` (bêta, erreur-type groupée par date et par action, R²) pour toutes les nuits, nuits de semaine, week-ends : si le bêta est proche de 1 le perp est déjà informatif.
+  **H1b (12 cellules)** : `res` et `gap` (continuation puis retour : IC de rang et déciles) contre le rendement du perp de l'ouverture (barre de 13:30) à +30 minutes, +2 h, la clôture, sur toutes les nuits et les nuits de semaine ;
+  variable normalisée par l'écart-type de chaque action, IC poolé, erreur-type jackknife par jour. Univers : actions avec au moins 40 jours de perp avant le gel (2026-09-28).
+- **H2 coupe transversale quotidienne, longue histoire** : variables `mom_1, mom_5, mom_20, mom_60, mom_120` (rendement sur L jours) et `mom_60s, mom_120s` (idem sans le dernier mois : de t-L-21 à t-21 ; les sauts n'ont pas de sens pour 1, 5 et 20 jours) ;
+  momentum et reversal sont le signe de l'IC ; au moins 10 titres par date ; **rendement ultérieur à 1, 5 et 21 jours** de clôture à clôture, dates non chevauchantes (rééquilibrage quotidien, hebdomadaire, mensuel) ; IC de rang par date, quintiles long/short équipondérés
+  et pondérés par 1 / volatilité (60 jours), rotation mesurée. **21 cellules**.
+- **H3 nuit contre séance** : rendement nuit `ON` = ln(adjOpen_t / adjClose_{t-1}), séance `ID` = ln(adjClose_t / adjOpen_t), moyenne équipondérée des actions par date ; sous-ensembles toutes les nuits, semaine (mar-ven), week-end (lundi) ; en plus sur le perp
+  (`move` et clôture contre ouverture, avant le gel). **8 cellules** (2 x (3 Tiingo + 1 perp)). Seuil de rentabilité = |moyenne| / (15.5 bps +- funding de la durée de détention : 0.0625 bps par heure, 17.5 h la nuit de semaine, 65.5 h le week-end).
+- **H4 résultats trimestriels : sautée.** Source gratuite et légale identifiée : EDGAR de la SEC (8-K, rubrique 2.02, horodatage d'acceptation). Elle exige un en-tête `User-Agent` avec un contact réel (nom et adresse électronique) : une requête avec un contact
+  générique est refusée (HTTP 403, essayée deux fois). Pas d'adresse personnelle envoyée sans accord explicite : non faite ; Tiingo gratuit n'a pas de calendrier de résultats.
+
+### Fenêtres, plis, puissance (règle fixée d'avance, n'utilise que les rendements)
+
+- **Longue histoire (H2, H3 Tiingo)** : train jusqu'à 2012 inclus, validation 2013 à 2018, test 2019 au 2026-10-06. L'étage 1 n'utilise que **train + validation (avant 2019-01-01)** ; **le test 2019 -> 2026 n'est lu qu'une fois, à l'étage 2**, pour les finalistes.
+  Trois plis chronologiques de nombre égal de dates dans la fenêtre de découverte. **Perp (H1, H3 perp)** : découverte avant le 2026-09-28, holdout ensuite (touché une fois à l'étage 2, l'enregistreur ensuite aussi).
+- **Puissance** : écart minimal détectable (p = 0.001, puissance 80 %, `4.13 x erreur-type sous H0`) comparé à 3 fois le coût : H1b : déciles poolés, erreur-type avec effet de date (rho entre actions du même jour) ; H2 : spread de quintiles, `racine(2/q) x
+  dispersion transversale / racine(nombre de dates)` avec q le nombre de titres par quintile, comparé à 3 x (4 x 0.5 x 7.75 = 15.5) bps ; H3 : `sigma / racine(n)` contre 3 x coût. **Une cellule dont le MDE dépasse 3 fois le coût n'est pas testée (sous-puissante).**
+  **Résultat (`results/stocks_power.json`) : 13 cellules retenues sur 41.** Exclues : **les 12 cellules H1b** (18 actions, 42 à 71 jours chacune, 686 à 848 couples action-jour : MDE de 195 à 357 bps, contre une limite de 46.5 bps ; les gaps d'ouverture du perp sont des mouvements
+  d'une centaine de bps), les 14 cellules H2 à 5 et 21 jours (MDE 52 et 217 bps contre 46.5 : trop peu de titres par quintile et de dates), et les 2 cellules H3 sur le perp (48 jours, MDE 84 à 91 bps). **Retenues : H2 quotidien (7 cellules) et H3 Tiingo (6 cellules).**
+  H1b n'est donc pas testable en l'état (il faudrait plusieurs mois de perp supplémentaires) ; H1a, descriptif, est rapporté.
+- **Univers H1** : 18 actions avec au moins 40 jours de perp avant le gel (AAPL, AMD, AMZN, ARM, ASML, AVGO, GOOG, INTC, META, MSFT, MU, NVDA, QCOM, SKHY, SNDK, SPCX, TSLA, TSM) ; les autres ont moins de 40 jours à la date du gel.
+
+### Statistiques, tests multiples, contrôles
+
+- H2 : IC de rang par date (Spearman, rangs moyens), moyenne sur les dates, erreur-type jackknife par blocs de dates consécutives (environ un mois : 21 dates à 1 jour) ; écart de quintiles équipondéré (principal) et pondéré par 1 / volatilité ; ratio = |écart| / (4 x rotation x 7.75).
+  H3 : moyenne par date, jackknife par blocs de 20 dates, p normale. Plis : signe de l'IC (ou de la moyenne) et de l'écart identique dans les 3 plis. **Robustesse au titre (H2)** : retirer un titre à la fois ne change pas le signe de l'IC.
+- **FDR** : Benjamini-Hochberg à 5 % sur les cellules testées (au plus 13), p étalonnées par les placebos (lambda = max(1, écart-type robuste des z placebos)). **Placebos** : H2 : signal décalé d'un retard de 30 à 250 jours, signal mélangé par blocs de 20 jours (la coupe transversale
+  d'une autre date) ; H3 : signes tirés au hasard par blocs de 20 et de 60 dates. **Faux positifs attendus : 0.05 x 13 = 0.65** à p < 0.05 non corrigé.
+- **Contrôle positif** (`tests/test_stocks_study.py`) : une autocorrélation journalière injectée (momentum ou reversal, 0.15) est retrouvée avec le bon signe, |z| > 4 ; sur du bruit rien ne passe le BH ; une dérive nocturne injectée de +20 bps est retrouvée ; mouvement et résidu H1 calculés à la main ; absence d'anticipation vérifiée
+  (signaux et volatilité inchangés quand on supprime le futur) ; horaires de séance avec DST ; téléchargeur : limiteur de débit simulé, clé dans l'en-tête et jamais dans l'URL, `.env` et `data/tiingo/` ignorés.
+- **Passe l'étage 1** = FDR (q étalonné <= 5 %) ET stable sur 3 plis ET robuste au titre ET ratio effet / coût > 1. Résultats : **toutes les cellules** (nulles, exclues, indisponibles) dans `results/stocks_stage1.csv`, carte de chaleur `results/stocks_heatmap.svg`, H1a dans `results/stocks_h1a.csv`.
+
+### Étage 2 (écrit maintenant, exécuté seulement pour les cellules qui passent l'étage 1)
+
+- **Au plus un finaliste par hypothèse** (plus grand ratio) : au maximum 2 (H2 et H3 ; H1b est hors étage). **M : 9 aujourd'hui (A 3, B 1, MM 1, C 1, D 1, E 1, grille large 1) ; M = 9 + nombre de finalistes testés** (annoncé : 9 + 0 à 2). Bonferroni sur le t du rendement net en test.
+- **H2** : au rebalancement quotidien, long du quintile supérieur et short du quintile inférieur de la variable (le sens = signe de l'IC mesuré à l'étage 1, jamais modifié), pondération par 1 / volatilité 60 jours, au moins 10 titres, un seul jeu de paramètres pour toutes les actions ; coûts 7.75 bps par côté et par titre changé
+  (rotation réelle), funding : intérêt fixe long contre short (net nul pour un portefeuille équilibré) ; levier : 1x, 2x, 5x, volatilité cible 10 % et 20 %, avec coût en % de la marge, drawdown, liquidations (mèches journalières ajustées, mmr = 0.5 / levier max, 10x pour une action) ; **test = 2019 -> 2026-10-06 touché une fois** (train jusqu'à 2012, validation 2013-2018) ;
+  baseline : mêmes dates, rangs des titres mélangés (même rotation moyenne), 200 tirages ; longs et shorts séparés.
+- **H3** : acheter (ou vendre selon le signe) chaque action à la clôture et sortir à l'ouverture, 1x, coût 15.5 bps plus le funding de la durée ; baseline = tenir les mêmes titres la séance (ouverture -> clôture) ; même test 2019 -> 2026, une fois.
+- **Critères de succès, tous requis** : (1) net moyen par trade (ou par rebalancement) > 0 en validation ET en test ; (2) Bonferroni significatif en test ; (3) bat >= 75 % des tirages aléatoires ; (4) longs et shorts non négatifs en test ; (5) le résultat ne dépend pas des 5 meilleurs périodes ;
+  (6) le test 2019-2026 reste positif sur la moitié la plus récente (2023-2026). **Règle d'arrêt : sinon conclusion négative, aucun code d'exécution.**
+
+## Résultats : actions (Tiingo + perp), étage 1, 2026-10-08
+
+Rapport : `docs/ACTIONS_REPORT.md` ; fichiers agrégés `results/stocks_*.{csv,json,txt,svg}` (aucune donnée brute Tiingo). **Conclusion NÉGATIVE à l'étage 1, aucun étage 2, aucun code d'exécution.** Biais de survie (univers actuel de Polymarket) étiqueté.
+41 cellules planifiées, **28 sous-puissantes (écartées par la règle écrite d'avance), 13 testées**, 5 passent le FDR (BH 5 %, placebos calibrés, lambda = 1), 4 stables sur 3 plis, **0 avec ratio effet / coût > 1**.
+- **H1a** (descriptif) : écart d'ouverture réel sur mouvement hors séance du perp : **bêta 0.70, R² 0.71** (0.66 et 0.67 en semaine, **0.89 et 0.88 le week-end**) : le perp est déjà informatif. **H1b non testable** (686 à 848 couples action-jour, MDE de 195 à 357 bps) ; descriptif : IC négatifs (-0.02 à -0.09), |z| <= 1.9.
+- **H2** (daily seulement, 5 et 21 jours sous-puissants) : inversion fine à 1 et 5 jours (IC -0.012 et -0.010, q 0.016 et 0.044), **7.1 bps par jour bruts contre 12 bps de rotation** (ratio 0.59) ; pas de momentum à 20, 60, 120 jours.
+- **H3** : la prime de nuit est réelle (**+9.5 bps par nuit, z = 8.7**, stable) mais le seuil de rentabilité est **16.8 bps** (ratio 0.57 ; 0.61 en semaine ; 0.38 le week-end) ; la séance est négative, non significative.
+- H4 (résultats trimestriels) sautée : EDGAR exige un contact réel dans l'en-tête (403 sinon). M reste à 9. Le test 2019-2026 et le holdout perp du 2026-09-28 sont intacts.
 
 ## Hypothèses restantes (non vérifiées)
 
