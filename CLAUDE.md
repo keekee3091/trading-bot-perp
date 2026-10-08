@@ -1348,7 +1348,7 @@ Rapport : `docs/ACTIONS_REPORT.md` ; fichiers agrégés `results/stocks_*.{csv,j
 
 ## Pré-enregistrement : H4, résultats trimestriels (SEC EDGAR + Tiingo), écrit AVANT tout résultat
 
-Écrit le 2026-10-09, après `tools/fetch_sec.py`, `tools/earnings_study.py --mode plan` et `--mode power` (rendements seulement, aucune relation) et `tests/test_earnings_study.py`. Cadre : aucun ordre réel, `LiveExchange` reste un stub,
+Écrit le 2026-10-08, après `tools/fetch_sec.py`, `tools/earnings_study.py --mode plan` et `--mode power` (rendements seulement, aucune relation) et `tests/test_earnings_study.py`. Cadre : aucun ordre réel, `LiveExchange` reste un stub,
 pas de market making, aucun signal retourné après coup.
 
 - **Accès SEC** : conditions d'accès automatisé d'EDGAR en une ligne : un en-tête `User-Agent` déclarant un contact réel et au plus 10 requêtes par seconde, sinon blocage (403 constaté sans contact). Le contact est autorisé explicitement par l'utilisateur pour cet usage
@@ -1373,7 +1373,7 @@ pas de market making, aucun signal retourné après coup.
 - **FDR, placebos, étage 2** (appliqués si une cellule est testable) : Benjamini-Hochberg à 5 %, placebos « dates d'annonce décalées au hasard » (10 à 40 puis 41 à 120 jours de cotation, loin des vrais événements) ; contrôle positif synthétique (dérive injectée retrouvée avec le bon signe) ; étage 2 seulement pour
   FDR + stable + robuste + ratio > 1, un finaliste par hypothèse, M = 9 + finalistes (annoncé : 9 aujourd'hui, car aucun test n'est consommé).
 
-## Résultats : H4, résultats trimestriels (2026-10-09)
+## Résultats : H4, résultats trimestriels (2026-10-08)
 
 Rapport : `docs/H4_REPORT.md` ; fichiers agrégés `results/earnings_*.{csv,json,txt,svg}` (aucune donnée brute Tiingo ni SEC redistribuée). **1 500 événements 8-K Item 2.02 (28 actions)**, 1 229 retenus après classement, **587 avec fenêtres complètes avant 2019 (AMC 576, BMO 11)**.
 **Les 15 cellules H4a et H4b sont sous-puissantes (MDE de 538 à 1 054 bps contre 47 à 173 bps) : H4 n'est pas testable avec cet univers.** Aucun test, FDR vide, aucun étage 2. Le test 2019-2026 est intact, M reste à 9. H4c (exploratoire, perp) : sur 12 nuits d'annonce AMC dans les 70 jours de perp, le mouvement hors
@@ -1381,7 +1381,7 @@ séance du perp explique l'écart d'ouverture réel presque entièrement (bêta 
 
 ## Pré-enregistrement : P1, signaux lents et exécution passive, écrit AVANT tout résultat
 
-Écrit le 2026-10-09, avant `tools/p1_study.py` et toute mesure P1. Cadre : aucun ordre réel, `LiveExchange` reste un stub, aucun signal retourné après coup, pas de nouvelle recherche de signal. Les phases A à E, grille large, actions et H4 sont terminées
+Écrit le 2026-10-08, avant `tools/p1_study.py` et toute mesure P1. Cadre : aucun ordre réel, `LiveExchange` reste un stub, aucun signal retourné après coup, pas de nouvelle recherche de signal. Les phases A à E, grille large, actions et H4 sont terminées
 (H4 non testable) ; P1 agit sur le COÛT : ordres post-only maker (1.25 bps, pas de franchissement du spread) contre taker (4 bps + 2 bps de slippage + spread payé implicitement).
 
 ### Signaux (fixés et listés avant tout calcul, avec le chiffre qui les justifie)
@@ -1440,7 +1440,7 @@ séance du perp explique l'écart d'ouverture réel presque entièrement (bêta 
 3. **Baseline aléatoire de S2** : S2 achète toutes les actions négociables chaque nuit (règle de calendrier, aucune sélection) : le tirage de « mêmes nombres de signaux » redonne exactement le même ensemble, baseline dégénérée ; sans objet pour S2 (critère « bat 75 % des tirages » non applicable), appliquée à S1.
 4. **Intervalle Bonferroni** : borne basse du bootstrap par jour à 1 - 0.05 / 31 (5 000 tirages), ajoutée à l'intervalle à 95 %, car le critère (4) de la règle fixe la correction sur 31 cellules.
 
-## Résultats : P1, signaux lents et exécution passive (2026-10-09)
+## Résultats : P1, signaux lents et exécution passive (2026-10-08)
 
 Rapport : `docs/P1_REPORT.md` ; fichiers : `results/p1_partA.csv`, `p1_partB.csv`, `p1_summary.txt`. **Conclusion : AUCUN signal positif et robuste. Aucun code d'exécution.** Aucun test hors échantillon consommé (le test Tiingo 2019-2026 et le holdout perp du 2026-09-28 sont intacts), M reste à 9.
 - **Partie A, effet exécutable (longue histoire, avant 2019)** : **l'inversion S1 n'est pas exécutable** : l'effet clôture-clôture de 7.09 bps (S1b) devient **-8.40 bps** en exécutable (entrée à l'ouverture, sortie à la clôture ; z net = -3.5) : la totalité de l'inversion se joue dans l'écart de nuit, que l'on n'exécute pas ;

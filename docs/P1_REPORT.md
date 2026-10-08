@@ -1,4 +1,4 @@
-# P1 : signaux lents et exécution passive (post-only), rapport final, 2026-10-09
+# P1 : signaux lents et exécution passive (post-only), rapport final, 2026-10-08
 
 **Conclusion : aucun signal n'est positif et robuste. Aucun code d'exécution.** `LiveExchange` reste un stub, aucun ordre réel. Le test Tiingo 2019-2026 et le holdout du perp après le 2026-09-28 sont intacts ; M reste à 9 (aucun finaliste).
 Pré-enregistrement : `CLAUDE.md`, « Pré-enregistrement : P1 » (signaux, politiques, bornes, critères, 124 estimations dont 31 cellules d'exécution). Outils : `tools/p1_study.py`, `tools/passive_fills.py` ; tests `tests/test_p1.py` (dans ctest : fills passifs calculés à la main, absence d'anticipation,

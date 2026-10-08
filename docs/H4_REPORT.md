@@ -1,4 +1,4 @@
-# H4 : résultats trimestriels (SEC EDGAR + Tiingo), rapport final, 2026-10-09
+# H4 : résultats trimestriels (SEC EDGAR + Tiingo), rapport final, 2026-10-08
 
 **Conclusion : non testable avec cet univers. Aucun étage 2, aucun code d'exécution.** `LiveExchange` reste un stub, aucun ordre réel. Pré-enregistrement : `CLAUDE.md`, « Pré-enregistrement : H4 ». Outils : `tools/fetch_sec.py`, `tools/earnings_study.py`,
 tests `tests/test_earnings_study.py` (dans ctest, réseau simulé, agent factice). Fichiers agrégés : `results/earnings_stage1.csv` (les 15 cellules), `earnings_events.csv` (comptes par action), `earnings_h4c.csv`, `earnings_power.json`, `earnings_summary.txt`.
