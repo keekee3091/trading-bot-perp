@@ -19,3 +19,6 @@ data/*.yaml
 legacy_py/__pycache__/
 data/tiingo/
 data/sec/
+data/xvenue/
+data/xvenue_stdout.log
+data/*.log
