@@ -114,6 +114,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--test")
     ap.add_argument("--all", action="store_true")
+    ap.add_argument("--tickers", nargs="+", help="tickers supplementaires (ETF de couverture), hors instruments Polymarket")
     a = ap.parse_args()
     key = load_key()
     if not key:
@@ -121,6 +122,9 @@ def main():
     st = load_state()
     if a.test:
         print(a.test, fetch_one(key, a.test.upper(), st))
+    for t in (a.tickers or []):
+        if st["tickers"].get(t.upper(), {}).get("status") not in ("ok", "absent"):
+            print(t.upper(), fetch_one(key, t.upper(), st), flush=True)
     if a.all:
         with open(os.path.join("data", "instruments_equity.json"), encoding="utf-8") as f:
             tickers = [i["base_asset"].upper() for i in json.load(f)]

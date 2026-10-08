@@ -26,6 +26,7 @@ lève une exception, tant que backtest puis paper n'ont pas montré un Sharpe po
 | 15. Famille D : décalage avec Binance, crypto (`tools/leadlag_study.py`, `tools/fetch_binance.py`) | fait, négatif (« rien à voir ») |
 | 16. Famille E : momentum de séries temporelles sur sous-jacents non crypto (`tools/tsmom_study.py`, `tools/fetch_underlying.py`) | fait, négatif (4 critères sur 7 échouent) |
 | 17. Note de décision (`docs/DECISION_NOTE.md`) | mise à jour |
+| 23. Piste A : carry de funding avec couverture (`tools/carry_study.py`) | **fait : inconclusif** (IC trop large), carry brut 4,34 % contre rf 3,79 %, rapport `docs/CARRY_REPORT.md` |
 | 22. P1 signaux lents + exécution passive (`tools/p1_study.py`, `tools/passive_fills.py`) | **fait : aucun signal positif et robuste** (S1 non exécutable : -8.4 bps ; S2 prime de nuit : sélection adverse 5 fois trop forte), rapport `docs/P1_REPORT.md` |
 | 21. H4 résultats trimestriels (SEC EDGAR + Tiingo, `tools/fetch_sec.py`, `tools/earnings_study.py`) | **fait : non testable** (15 cellules sous-puissantes), H4c descriptif ; rapport `docs/H4_REPORT.md` |
 | 20. Actions (Tiingo + perp) : H1 écart de réouverture, H2 coupe transversale quotidienne, H3 nuit contre séance (`tools/fetch_tiingo.py`, `tools/stocks_study.py`) | **fait : négatif à l'étage 1** (13 cellules testées sur 41, 0 avec ratio effet / coût > 1), rapport `docs/ACTIONS_REPORT.md` |
@@ -326,7 +327,7 @@ tests/                 assert-based, check.hpp (CHECK_NEAR), un exécutable par 
 legacy_py/             archive du premier jet Python, non testé, ne pas compléter
 tools/                 fetch_klines, survey_universe, sessions, signal_diagnostic, funding_diagnostic,
                        panel_stats, recorder, fetch_trades, side_semantics, premium_study, leadlag_study,
-                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study, fetch_sec, earnings_study, p1_study, passive_fills (stdlib uniquement) ;
+                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study, fetch_sec, earnings_study, p1_study, passive_fills, carry_study (stdlib uniquement) ;
                        mm_economics : ABANDONNÉ (quotation passive)
 data/                  klines, funding, overlays instrument (CSV ignorés par git) ; data/under/ : sous-jacents longs ;
                        data/live/ : enregistreur ;
@@ -1451,6 +1452,48 @@ Rapport : `docs/P1_REPORT.md` ; fichiers : `results/p1_partA.csv`, `p1_partB.csv
 - S1 sur 22 jours de perp : S1b est positif en exécutable (+10.4 bps par signal, conservatrice, intervalle à 95 % [1.2, 21.5], Bonferroni [-3.2, ...]) mais contredit les 25 ans de la partie A (-8.4 bps, z = -3.5) : bruit d'un échantillon de 22 jours (erreur-type de 10 à 35 bps par signal), pas un signal ; S1a négatif ; S1c [-17, +85] non concluant.
 - **Levier** (politique c, 2 h, descriptif) : S2a : 1x equity 0.982, 5x equity 0.915 avec drawdown de 9.2 %, aucune liquidation (le levier amplifie la perte) ; S1c : deux liquidations à 5x (drawdown 18 %).
 - **Limites** : biais de survie, historique perp court (22 jours de cotation, la puissance d'un net de quelques bps est nulle : erreur-type de 10 à 35 bps), spread hors séance non mesuré (jamais d'ordre hors séance), proxy du meilleur bid / ask par les trades, file d'attente modélisée, entrée de la longue histoire approchée par l'ouverture et la clôture officielles.
+
+## Pré-enregistrement : piste A, carry de funding avec couverture, écrit AVANT tout résultat
+
+Écrit le 2026-10-08 (date réelle vérifiée avec `date`), après l'inventaire des données (couverture seulement) et avant tout calcul de P&L, de base ou de carry. Cadre : aucun ordre réel, `LiveExchange` reste un stub, aucun signal retourné, pas de market making.
+Famille 11. **M : 9 aujourd'hui ; la lecture du holdout (après le 2026-09-28) par cette piste, si les critères passent sur la découverte, est une évaluation de test de plus : M = 10.**
+
+**Hypothèse H_A** : hors crypto, le funding est surtout une composante d'intérêt (0.0625 bps par heure, 5.475 % par an) payée par les longs aux shorts. Un short perp couvert par une position longue sur le sous-jacent encaisse ce funding sans exposition directionnelle. H_A : le rendement net annualisé de ce carry,
+après coût d'opportunité du capital (taux sans risque), frais d'entrée et de sortie des deux jambes, spread, slippage et base, est strictement positif au-delà d'une prime X fixée ici (**X = 1.0 % par an**) avec un intervalle de confiance à 95 % qui exclut zéro.
+
+### Univers et couverture (fixés avant résultat)
+
+- **Instruments** : tous les instruments non crypto de Polymarket avec au moins 40 jours de funding avant le gel du 2026-09-28 ET une jambe de couverture détenable avec des données : **27 actions** (SPCX, MU, SKHY, AAPL, MSFT, GOOG (GOOGL), AMZN, NVDA, META, TSLA, AMD, INTC, AVGO, QCOM, ARM, TSM, ASML, SNDK, HOOD, MSTR, CRCL, COIN, RKLB, LITE, NBIS, ORCL, PLTR ; couverture = l'action elle-même, prix ajustés Tiingo) et **5 indices et matières premières par ETF** :
+  SP500 par SPY, NAS100 par QQQ, GOLD par GLD, SILVER par SLV, WTIOIL par USO (Tiingo, plan gratuit). **Exclus et comptés** : STRC (actions de préférence), BABA et ZM (38 jours seulement), DRAM, EWY, NCLD, SOXL (sous-jacent non établi), BRENTOIL (pas de funding), SKHYNIX, CXMT, SAMSUNG, UNITREE (absents chez Tiingo), DELL, CRWV, CBRS, MRVL (pas de funding),
+  toute la crypto (hors périmètre de la piste : pas de couverture hors plateforme). **Total : 32 instruments.** Fait notable : USO est un panier de contrats à terme avec coût de roulement (le perp WTI référence un contrat à terme) et la base ETF / indice contient l'erreur de suivi ; le WTI est conservé, étiqueté, et rapporté à part.
+- **Données** : funding horaire réel (`/v1/info/funding`, fichiers `data/<SYM>_funding.csv`, taux publié incluant déjà le facteur 0.5 hors crypto, les longs paient quand il est positif d'après la doc ; **non vérifié par un paiement réel**, aucun compte), prix du perp au dernier prix de la barre de 1 minute qui précède la clôture des actions américaines (19:59 UTC en heure d'été), plus bas et plus haut de 1 minute entre deux clôtures,
+  sous-jacent Tiingo (rendement total ajusté des splits ET dividendes) aux mêmes dates, taux sans risque = bon du Trésor à 3 mois (FRED DTB3).
+- **Fenêtre** : découverte avant le 2026-09-28 (41 à 144 jours selon l'instrument) ; holdout du 2026-09-28 à la fin des données, lu une seule fois et seulement si les critères passent sur la découverte.
+
+### Comptabilité du carry (par unité de notionnel N de la jambe longue)
+
+- **Jambe longue** : N en sous-jacent (rendement total). **Jambe courte** : N en perp short avec marge M = N / L (L levier du perp, variable : 1, 2, 5, 10, plafonné au levier max de l'instrument ; la jambe longue est au comptant, 1x). Le « vol-ciblé » ne s'applique pas : la position est neutre au marché, L est le levier de marge.
+- **P&L journalier de clôture à clôture** = `base + funding` avec `base = rendement total du sous-jacent - rendement du prix du perp` (les dividendes du sous-jacent, que le perp ne verse pas, y apparaissent automatiquement ; si le perp ne baisse pas à la date ex-dividende, la base le montre) et `funding = somme des taux horaires publiés entre deux clôtures` reçue par le short quand elle est positive, payée sinon (week-ends et jours fériés compris, le funding court 24 h sur 24).
+- **Coûts** : aller-retour perp = 2 x 4 bps de frais taker + 2 x 2 bps de slippage + spread (relevé de carnet de chaque instrument, 3.5 bps par défaut) ; aller-retour de la couverture = **2 x h avec h = 3 bps par côté (hypothèse explicite)**, sensibilité h = 0, 1, 5 ; amortis sur la durée de détention H (7, 30, 90 jours).
+- **Coût d'opportunité du capital** : `rf x (N + M)` par an, c'est-à-dire que le carry est comparé à du cash qui rapporterait rf sur le même capital. **Marge rémunérée ? Non documenté, deux cas rapportés** : (i) marge non rémunérée (cas de base), (ii) marge rémunérée au taux sans risque.
+- **Excès net annualisé** (par unité de N) = `365 x moyenne calendaire de (base + funding) - coûts aller-retour x 365 / H - rf x (1 + 1/L)` (cas i). Estimé sur la série journalière (dates non chevauchantes) ; intervalle de confiance par bootstrap par blocs de semaines.
+- **Risque de liquidation du short** : sans transfert de marge entre plateformes (délai non quantifiable en lecture seule), le short est liquidé si le plus haut du perp dépasse le prix d'entrée de `1/L - mmr` avec `mmr = 0.5 / levier max` ; on rapporte, pour chaque L et chaque H, la part des fenêtres (départ chaque jour) où cela arrive. Le coût de rééquilibrage de la marge n'est pas modélisé.
+
+### Calcul de puissance (annoncé d'avance) et critères de succès
+
+- **Puissance** : le funding reçu est mesuré avec précision (série quasi déterministe) ; la base est un niveau borné, pas une marche aléatoire, mais sa moyenne sur 40 à 144 jours n'est pas estimable avec précision : l'intervalle du bootstrap quantifie cela. **Si la largeur de l'intervalle à 95 % de l'excès net poolé dépasse 2 X = 2 % par an, la piste est déclarée inconclusive**, jamais négative.
+- **Cas de référence (primaire)** : détention H = 30 jours, levier du perp L = 2, couverture h = 3 bps par côté, marge non rémunérée, instruments poolés à poids égaux. **Critères de succès, tous requis** : (1) excès net poolé > X = 1.0 % par an ; (2) borne basse de l'intervalle à 95 % par blocs > 0 ; (3) positif dans les deux moitiés du temps ; (4) au moins 60 % des 32 instruments (20) ont un excès net positif ; (5) le funding est positif au moins 70 % des heures dans les deux moitiés pour au moins 60 % des instruments
+  (stabilité) ; (6) part des fenêtres de 30 jours liquidées sans transfert de marge, à L = 2, <= 5 % ; (7) la base ne coûte pas plus de 3 % de N sur une fenêtre de 30 jours en moyenne poolée (pire fenêtre poolée). **Règle d'arrêt** : sinon conclusion négative (ou inconclusive si le critère de largeur est violé), aucun code d'exécution.
+- **Sensibilités rapportées (non décisionnelles)** : L = 1, 5, 10 ; H = 7, 90 ; h = 0, 1, 5 ; marge rémunérée ; par catégorie (actions, indices et ETF, WTI) ; hors les cinq instruments les plus volatils. Comparaison à la simple détention du sous-jacent : rendement et volatilité annualisés sur la même période.
+- **Pièges à vérifier** : signe et échelle du funding (0.5 hors crypto, déjà inclus), comportement hors séance et week-end de la base (écart-type de la base du vendredi au lundi contre les jours de semaine), date ex-dividende, biais de survie des actions Tiingo (univers actuel de Polymarket), un seul régime (haussier) dans les données.
+- **Livrables** : `tools/carry_study.py`, `tests/test_carry.py` (dans ctest), `docs/CARRY_REPORT.md`, `results/carry_*.csv` (agrégats seulement, aucune donnée brute Tiingo).
+
+## Résultats : piste A, carry de funding avec couverture (2026-10-08)
+
+Rapport : `docs/CARRY_REPORT.md` ; fichiers `results/carry_instruments.csv`, `carry_pooled.csv` (96 réglages), `carry_summary.txt`. **Verdict pré-enregistré : INCONCLUSIF (intervalle de 13,1 % de large pour une limite de 2 %), avec des estimations ponctuelles négatives et une arithmétique défavorable. Aucun code d'exécution ; le holdout n'est pas lu, M reste à 9.**
+32 instruments (27 actions, 5 indices et matières premières couverts par ETF), 41 à 144 jours. Funding reçu par le short : actions +5,38 % par an, indices et matières +2,7 %, WTI -21 %. Cas de référence (30 jours, L = 2, couverture 3 bps, marge non rémunérée) : excès net poolé **-3,94 % par an, IC95 [-11,2 ; +1,9]**, 12 instruments sur 32 positifs.
+**Arithmétique** : carry brut poolé 4,34 % par an contre un taux sans risque de 3,79 % : le coût d'opportunité `rf x (1 + 1/L)` l'emporte à tous les leviers (L = 10 : +0,17 % avant frais, 451 jours pour amortir l'aller-retour). Risque : 5,6 % des fenêtres de 30 jours liquidées à L = 2 sans transfert de marge (MSTR 71 %, CRCL 43 %). Anomalie de démarrage SPCX (perp figé à 300 les 17 et 18 juin) : sensibilité post hoc -1,71 % [-4,9 ; +3,9].
+Écart déclaré : stabilité du funding mesurée sur le signe de la somme journalière, pas heure par heure.
 
 ## Hypothèses restantes (non vérifiées)
 
