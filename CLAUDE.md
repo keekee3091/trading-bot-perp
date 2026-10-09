@@ -26,6 +26,7 @@ lève une exception, tant que backtest puis paper n'ont pas montré un Sharpe po
 | 15. Famille D : décalage avec Binance, crypto (`tools/leadlag_study.py`, `tools/fetch_binance.py`) | fait, négatif (« rien à voir ») |
 | 16. Famille E : momentum de séries temporelles sur sous-jacents non crypto (`tools/tsmom_study.py`, `tools/fetch_underlying.py`) | fait, négatif (4 critères sur 7 échouent) |
 | 17. Note de décision (`docs/DECISION_NOTE.md`) | mise à jour |
+| 27. Piste E : prime de variance VIX (`tools/vrp_study.py`, hors Polymarket) | **fait : critères tenus** (découverte et test 2019-2026 lu une fois, M = 10) mais alpha modeste (+0,21 % par mois, t = 1,4 sur le test) et proxys de prix, rapport `docs/VRP_REPORT.md` |
 | 26. Piste D : différence de funding entre plateformes (`tools/funding_xvenue.py`, `tools/fetch_hl.py`) | **fait : inconclusif** (+1,31 % par an, IC95 [-1,0 ; +4,7], porté par quelques actifs), lecture du holdout pré-enregistrée le 2026-12-15, rapport `docs/FUNDING_XVENUE_REPORT.md` |
 | 25. Piste C : écart entre plateformes, phase 1 (`tools/recorder_xvenue.py`) | **collecte en cours** depuis le 2026-10-08, aucune analyse, phase 2 au plus tôt le 2026-10-22 |
 | 24. Piste B : horizons longs (`tools/long_horizon.py`) | **découverte faite : aucun finaliste** (TSM 5 jours net +8,65 bps, z 0,88, instable) ; 20 et 60 jours sous-puissants ; test non lu |
@@ -330,7 +331,7 @@ tests/                 assert-based, check.hpp (CHECK_NEAR), un exécutable par 
 legacy_py/             archive du premier jet Python, non testé, ne pas compléter
 tools/                 fetch_klines, survey_universe, sessions, signal_diagnostic, funding_diagnostic,
                        panel_stats, recorder, fetch_trades, side_semantics, premium_study, leadlag_study,
-                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study, fetch_sec, earnings_study, p1_study, passive_fills, carry_study, long_horizon, recorder_xvenue, fetch_hl, funding_xvenue (stdlib uniquement) ;
+                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study, fetch_sec, earnings_study, p1_study, passive_fills, carry_study, long_horizon, recorder_xvenue, fetch_hl, funding_xvenue, vrp_study (stdlib uniquement) ;
                        mm_economics : ABANDONNÉ (quotation passive)
 data/                  klines, funding, overlays instrument (CSV ignorés par git) ; data/under/ : sous-jacents longs ;
                        data/live/ : enregistreur ;
@@ -1579,6 +1580,12 @@ Rapport : `docs/FUNDING_XVENUE_REPORT.md` ; fichiers `results/funding_xvenue_*.c
 - **Critères de succès sur la découverte, tous requis (pour E1 de référence, puis pour E2 séparément)** : (1) rendement excédentaire moyen > X = 0,15 % par mois (environ 1,8 % par an) ; (2) borne basse de l'intervalle à 95 % > 0 ; (3) positif dans le train ET dans la validation ; (4) drawdown maximal du capital <= 45 % et pire mois >= -20 % ; (5) Sharpe > 0,3 ; (6) toujours positif sans 2008-2010 (la prime n'est pas un seul épisode). **Si (1) à (5) tiennent : lecture unique du test 2019-2026** avec les mêmes critères, M passe à 10 (ou plus).
 - **Règle d'arrêt** : sinon conclusion négative pour cette stratégie. **Même positif, aucun code d'exécution : la stratégie exige des options réelles sur un courtier, hors périmètre de ce dépôt.** Un résultat positif signifierait seulement que la prime existe et que la question suivante est l'exécution et le capital réel.
 - **Limites annoncées** : proxys de prix (VIX moins 1,5 point, pas de pente, pas de dividende), pas de couverture delta, pas de chaînes d'options réelles ni de spreads réels, SPY comme proxy du S&P 500, un siècle de volatilité mais peu de crises (2008, 2020, 2022), biais de survie nul pour l'indice.
+
+## Résultats : piste E, prime de variance (2026-10-09)
+
+Rapport : `docs/VRP_REPORT.md` ; fichiers `results/vrp_summary.txt`, `vrp_test.txt` (lu une seule fois, verrou), `vrp_alpha.txt`. **Critères (1) à (5) tenus sur la découverte (310 mois) ET sur le test 2019-2026 (92 mois) pour E1 (put garanti) et E2 (straddle), en proxy Black-Scholes (VIX - 1,5 point, demi-spread 0,5 point). M passe à 10.**
+E1 L = 1 : +0,56 % par mois (découverte, Sharpe 0,79, drawdown 30 %) puis +0,78 % (test, borne Bonferroni +0,145, Sharpe 0,98, pire mois -16,5 %) ; E2 L = 0,5 : +0,32 % puis +0,25 % (borne Bonferroni +0,001). Prime de variance brute : VIX moins volatilité réalisée de +3,6 à +3,8 points, positive dans 82 à 85 % des mois, asymétrie négative.
+**Descriptif, non pré-enregistré : E1 a un bêta de 0,5 au SPY ; l'alpha vaut +0,32 % par mois (t = 4,8) sur la découverte mais +0,21 % (t = 1,4) sur le test (E2, neutre au marché : même alpha)** : la prime pure est de l'ordre de 2,5 à 3,9 % par an. Sensibilité : l'intervalle contient zéro avec VIX - 3 points et un demi-spread de 2 points. Hors Polymarket (options d'indice réelles requises) : aucun code d'exécution.
 
 ## Hypothèses restantes (non vérifiées)
 

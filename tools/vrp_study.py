@@ -190,13 +190,32 @@ def test_report(ms, passed):
     return L
 
 
+def alpha_beta(ms, key, L):
+    """DESCRIPTIF (non pré-enregistré) : régression du rendement excédentaire de la stratégie sur celui du SPY ; beta, alpha mensuel et son t."""
+    y = [L * m[key] for m in ms]
+    x = [m["ret"] - m["rf"] * T_M for m in ms]
+    mx, my = statistics.fmean(x), statistics.fmean(y)
+    sxx = sum((a - mx) ** 2 for a in x)
+    b = sum((a - mx) * (c - my) for a, c in zip(x, y)) / sxx
+    a0 = my - b * mx
+    se = math.sqrt(sum((yy - a0 - b * xx) ** 2 for xx, yy in zip(x, y)) / (len(x) - 2) * (1 / len(x) + mx * mx / sxx))
+    return b, a0, a0 / se
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", choices=["discover", "test"], required=True)
+    ap.add_argument("--mode", choices=["discover", "test", "alpha"], required=True)
     ap.add_argument("--data", default="data")
     ap.add_argument("--out", default="results")
     a = ap.parse_args()
     vix, spy, rf = load(a.data)
+    if a.mode == "alpha":
+        allm = months(vix, spy, rf)
+        for lab, ms in (("découverte", [m for m in allm if m["d1"] < DISC_END]), ("test (descriptif, après la lecture unique)", [m for m in allm if m["d0"] >= DISC_END])):
+            for key, Lr in (("e1", 1.0), ("e2", 0.5)):
+                b, a0, t = alpha_beta(ms, key, Lr)
+                print("%s %s : beta %.2f, alpha %+.3f %% par mois (t = %.2f)" % (lab, key, b, 100 * a0, t))
+        return
     if a.mode == "discover":
         ms = [m for m in months(vix, spy, rf) if m["d1"] < DISC_END]
         L, res = report(ms, "DÉCOUVERTE")
