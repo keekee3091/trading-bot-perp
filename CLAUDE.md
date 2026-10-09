@@ -26,6 +26,7 @@ lève une exception, tant que backtest puis paper n'ont pas montré un Sharpe po
 | 15. Famille D : décalage avec Binance, crypto (`tools/leadlag_study.py`, `tools/fetch_binance.py`) | fait, négatif (« rien à voir ») |
 | 16. Famille E : momentum de séries temporelles sur sous-jacents non crypto (`tools/tsmom_study.py`, `tools/fetch_underlying.py`) | fait, négatif (4 critères sur 7 échouent) |
 | 17. Note de décision (`docs/DECISION_NOTE.md`) | mise à jour |
+| 28. Piste F : calibration des marchés de prédiction Polymarket (`tools/fetch_pm.py`, `tools/pm_calibration.py`) | **fait : négatif** (vente d'outsiders -0,8 à -1,6 % par trade), achat de favoris non concluant ; test 2026 non lu ; rapport `docs/PM_CALIBRATION_REPORT.md` |
 | 27. Piste E : prime de variance VIX (`tools/vrp_study.py`, hors Polymarket) | **fait : critères tenus** (découverte et test 2019-2026 lu une fois, M = 10) mais alpha modeste (+0,21 % par mois, t = 1,4 sur le test) et proxys de prix, rapport `docs/VRP_REPORT.md` |
 | 26. Piste D : différence de funding entre plateformes (`tools/funding_xvenue.py`, `tools/fetch_hl.py`) | **fait : inconclusif** (+1,31 % par an, IC95 [-1,0 ; +4,7], porté par quelques actifs), lecture du holdout pré-enregistrée le 2026-12-15, rapport `docs/FUNDING_XVENUE_REPORT.md` |
 | 25. Piste C : écart entre plateformes, phase 1 (`tools/recorder_xvenue.py`) | **collecte en cours** depuis le 2026-10-08, aucune analyse, phase 2 au plus tôt le 2026-10-22 |
@@ -331,7 +332,7 @@ tests/                 assert-based, check.hpp (CHECK_NEAR), un exécutable par 
 legacy_py/             archive du premier jet Python, non testé, ne pas compléter
 tools/                 fetch_klines, survey_universe, sessions, signal_diagnostic, funding_diagnostic,
                        panel_stats, recorder, fetch_trades, side_semantics, premium_study, leadlag_study,
-                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study, fetch_sec, earnings_study, p1_study, passive_fills, carry_study, long_horizon, recorder_xvenue, fetch_hl, funding_xvenue, vrp_study (stdlib uniquement) ;
+                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study, fetch_sec, earnings_study, p1_study, passive_fills, carry_study, long_horizon, recorder_xvenue, fetch_hl, funding_xvenue, vrp_study, fetch_pm, pm_calibration (stdlib uniquement) ;
                        mm_economics : ABANDONNÉ (quotation passive)
 data/                  klines, funding, overlays instrument (CSV ignorés par git) ; data/under/ : sous-jacents longs ;
                        data/live/ : enregistreur ;
@@ -1604,6 +1605,11 @@ Divulgation : seuls des comptes de marchés et des champs de métadonnées ont �
 - **Erreur-type** : jackknife en supprimant un événement à la fois (les marchés d'un même événement sont corrélés ; les groupes à somme 1 sont comptés comme un seul événement).
 - **Critères de succès (tous requis, pour chaque règle)** : (1) rendement net moyen par transaction > X = 1,0 % ; (2) borne basse de l'IC95 > 0 sur train + validation ET rendement moyen positif dans le train et dans la validation séparément ; (3) au moins 300 transactions dans chacun ; (4) Benjamini-Hochberg à 5 % sur les 6 cellules ; (5) bat 95 % de 1 000 tirages de l'**hypothèse nulle de calibration parfaite** (mêmes transactions, issues tirées selon Bernoulli(prix de Yes) ; remplace un tirage aléatoire de marchés, sans sens ici puisque le rendement dépend du prix : amendement écrit avant tout résultat) ; (6) positif après retrait des 5 événements les plus rentables ; (7) positif avec 2 cents de spread payés ; (8) au moins 20 transactions en moyenne par mois (capacité). **Test lu une fois si au moins une règle passe (1) à (8)** ; Bonferroni sur le nombre de règles qui passent ; M passerait à 11.
 - **Règle d'arrêt** : sinon conclusion négative. Même positif, aucun code d'exécution. **Limites annoncées** : spread supposé (pas de carnet historique), taille de position non étudiée (profondeur inconnue), risque de contestation de résolution (UMA) non modélisé, marchés récents surreprésentés, corrélation entre marchés d'un même événement.
+
+## Résultats : piste F, calibration des marchés de prédiction (2026-10-09)
+
+Rapport : `docs/PM_CALIBRATION_REPORT.md` ; fichiers `results/pm_summary.txt`, `results/pm_calibration.csv`. **11 546 marchés binaires résolus (>= 300 000 $), 6 cellules de décision : LONGSHOT_SELL négatif aux trois horizons (-1,58 %, -1,36 %, -0,81 % par trade, train et validation tous deux négatifs), FAV_BUY non concluant (110 à 263 transactions, +1,2 % et +1,7 % non significatifs).** Le test 2026 (4 061 marchés) n'est pas lu, M reste à 10.
+Les marchés sont bien calibrés (contrats à 0-5 % : 0,7 à 0,9 % de gains pour 0,8 à 1,1 % de prix moyen) ; le spread supposé de 1 cent dépasse l'écart de calibration. Observation post hoc, non exploitable telle quelle : à 1 jour, les contrats à 10-20 % gagnent 21,6 % du temps pour un prix de 14,6 % (n = 371, Wilson [17,7 ; 26,0]) ; à tester uniquement sur des marchés postérieurs au 2026-09-30 avec une règle écrite avant. L'éligibilité à négocier ces marchés dépend du pays et n'est pas traitée.
 
 ## Hypothèses restantes (non vérifiées)
 
