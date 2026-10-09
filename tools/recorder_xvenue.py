@@ -18,7 +18,9 @@ stdlib uniquement. python tools/recorder_xvenue.py [--pairs BTC ETH ...] [--peri
 import argparse
 import json
 import os
+import socket
 import statistics
+import struct
 import sys
 import threading
 import time
@@ -79,6 +81,30 @@ def poly_rps(n_pairs, period_s, ctx_s=60.0):
     return n_pairs / period_s + 1.0 / ctx_s
 
 
+NTP_SERVERS = ("time.cloudflare.com", "pool.ntp.org")
+NTP_UNIX = 2208988800
+
+
+def ntp_offset(server, timeout=3.0, sock_factory=socket.socket, clock=time.time):
+    """Décalage de l'horloge LOCALE par rapport à un serveur NTP (SNTP, UDP 123), en ms, et aller-retour réseau. Positif = le serveur est en avance sur l'horloge locale.
+    offset = ((T2 - T1) + (T3 - T4)) / 2 avec T1 envoi local, T2 réception serveur, T3 émission serveur, T4 réception locale."""
+    s = sock_factory(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.settimeout(timeout)
+        t1 = clock()
+        s.sendto(bytes([0x1b]) + bytes(47), (server, 123))     # SNTP : LI 0, version 3, mode 3 (client), 47 octets nuls
+        d, _ = s.recvfrom(512)
+        t4 = clock()
+    finally:
+        s.close()
+
+    def ts(b):
+        sec, frac = struct.unpack("!II", b)
+        return sec - NTP_UNIX + frac / 2 ** 32
+    t2, t3 = ts(d[32:40]), ts(d[40:48])
+    return ((t2 - t1) + (t3 - t4)) / 2 * 1000.0, (t4 - t1 - (t3 - t2)) * 1000.0
+
+
 def top(levels, n=LEVELS):
     """Niveaux Polymarket [prix, quantité] ou Hyperliquid {px, sz, n} -> [[prix, quantité], ...]."""
     return [[float(l["px"]), float(l["sz"])] if isinstance(l, dict) else [float(l[0]), float(l[1])] for l in levels[:n]]
@@ -90,6 +116,7 @@ class XRecorder:
         if w > HL_WEIGHT_MAX or r > POLY_RPS_MAX:
             raise SystemExit("débit prévu trop élevé : poids Hyperliquid %.0f par minute (max %d), Polymarket %.2f requêtes par seconde (max %.1f)" % (w, HL_WEIGHT_MAX, r, POLY_RPS_MAX))
         self.pairs, self.out_dir, self.period = pairs, out_dir, period
+        self.ntp = ntp_offset
         self.fetch_poly, self.fetch_hl, self.clock, self.sleep = fetch_poly, fetch_hl, clock, sleep
         self.fail = 0
         self.lock = threading.Lock()
@@ -163,8 +190,19 @@ class XRecorder:
                 offs_p.append(b["timestamp"] - (s + r) / 2)
                 rtt_p.append(r - s)
                 self.sleep(1.0)
-            self.write("clock.jsonl", {"t": self.clock() * 1000, "hl_offset_ms": statistics.median(offs_hl), "hl_rtt_ms": statistics.median(rtt_hl),
-                                       "poly_offset_ms": statistics.median(offs_p), "poly_rtt_ms": statistics.median(rtt_p)})
+            rec = {"t": self.clock() * 1000, "hl_offset_ms": statistics.median(offs_hl), "hl_rtt_ms": statistics.median(rtt_hl),
+                   "poly_offset_ms": statistics.median(offs_p), "poly_rtt_ms": statistics.median(rtt_p),
+                   "hl_snapshot_age_ms": -statistics.median(offs_hl), "poly_snapshot_age_ms": -statistics.median(offs_p)}
+            for server in NTP_SERVERS:                      # vrai décalage de l'horloge locale (médiane de 3 mesures) ; premier serveur qui répond
+                try:
+                    m = [self.ntp(server) for _ in range(3)]
+                    rec["ntp_server"] = server
+                    rec["ntp_offset_ms"] = statistics.median(x[0] for x in m)
+                    rec["ntp_rtt_ms"] = statistics.median(x[1] for x in m)
+                    break
+                except (OSError, struct.error):
+                    continue
+            self.write("clock.jsonl", rec)
             self.counts["clock"] += 1
         except Exception as e:  # noqa: BLE001
             self.error("clock", e)
@@ -218,7 +256,7 @@ def health(out_dir, period=7.0, n_pairs=18):
         cur = dt.date.fromisoformat(d)
         run = run + 1 if prev is not None and (cur - prev).days == 1 else 1
         best, prev = max(best, run), cur
-    hl_o, po_o, n_err, n_smp = [], [], 0, 0
+    hl_o, po_o, ntp_o, hl_a, po_a, n_err, n_smp = [], [], [], [], [], 0, 0
     for d in days:
         n_smp += days[d]["n_samples"]
         pe = os.path.join(out_dir, d, "errors.log")
@@ -233,11 +271,18 @@ def health(out_dir, period=7.0, n_pairs=18):
                         r = json.loads(line)
                         hl_o.append(r["hl_offset_ms"])
                         po_o.append(r["poly_offset_ms"])
+                        hl_a.append(r["hl_snapshot_age_ms"] if "hl_snapshot_age_ms" in r else -r["hl_offset_ms"])
+                        po_a.append(r["poly_snapshot_age_ms"] if "poly_snapshot_age_ms" in r else -r["poly_offset_ms"])
+                        if "ntp_offset_ms" in r:
+                            ntp_o.append(r["ntp_offset_ms"])
                     except (ValueError, KeyError):
                         continue
     rng = lambda v: (max(v) - min(v)) if v else None
     return {"days": days, "continuous_days": best, "max_clock_offset_ms": max([abs(x) for x in hl_o + po_o]) if hl_o else None,
-            "clock_offset_range_ms": max([rng(hl_o), rng(po_o)]) if hl_o else None, "error_rate": n_err / max(n_smp, 1)}
+            "clock_offset_range_ms": max([rng(hl_o), rng(po_o)]) if hl_o else None, "error_rate": n_err / max(n_smp, 1),
+            "ntp_offset_range_ms": rng(ntp_o), "ntp_offset_max_abs_ms": max(abs(x) for x in ntp_o) if ntp_o else None, "ntp_n": len(ntp_o),
+            "snapshot_age_median_ms": {"hl": statistics.median(hl_a) if hl_a else None, "poly": statistics.median(po_a) if po_a else None},
+            "snapshot_age_range_ms": {"hl": rng(hl_a), "poly": rng(po_a)}}
 
 
 def main():
@@ -252,8 +297,12 @@ def main():
     if a.health:
         h = health(a.out, a.period, len(a.pairs))
         json.dump(h, open(os.path.join(a.out, "health.json"), "w"), indent=1)
-        print("jours continus (couverture médiane >= 90 %%, plus long trou <= 5 min) : %d ; décalage d'horloge maximal %s ms, variation %s ms (critère <= 300) ; taux d'erreurs %.3f %% (critère <= 1 %%)" % (
-            h["continuous_days"], h["max_clock_offset_ms"], h["clock_offset_range_ms"], 100 * h["error_rate"]))
+        f1 = lambda v: "n.d." if v is None else "%.0f" % v
+        print("jours continus (couverture médiane >= 90 %%, plus long trou <= 5 min) : %d ; taux d'erreurs %.3f %% (critère <= 1 %%)" % (h["continuous_days"], 100 * h["error_rate"]))
+        print("horloge LOCALE contre NTP (%d mesures) : décalage maximal %s ms, variation %s ms (critère de variation <= 300)" % (
+            h["ntp_n"], f1(h["ntp_offset_max_abs_ms"]), f1(h["ntp_offset_range_ms"])))
+        print("âge de l'instantané du carnet (rapporté, sans critère) : médiane Hyperliquid %s ms, Polymarket %s ms ; variation %s et %s ms" % (
+            f1(h["snapshot_age_median_ms"]["hl"]), f1(h["snapshot_age_median_ms"]["poly"]), f1(h["snapshot_age_range_ms"]["hl"]), f1(h["snapshot_age_range_ms"]["poly"])))
         for d, v in h["days"].items():
             print("  %s : %d paires, couverture médiane %.1f %%, minimale %.1f %%, plus long trou %.0f s" % (d, v["pairs"], 100 * v["coverage_median"], 100 * v["coverage_min"], v["max_gap_s"]))
         return

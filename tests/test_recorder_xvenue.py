@@ -135,6 +135,75 @@ class Health(unittest.TestCase):
             self.assertEqual(h["continuous_days"], 2)        # 1 et 2 octobre bons ; le 3 manque de couverture ; le 4 a un trou de plus de 5 minutes
 
 
+class Ntp(unittest.TestCase):
+    def packet(self, t2, t3):
+        import struct
+        def enc(t):
+            sec = int(t)
+            return struct.pack("!II", sec + rx.NTP_UNIX, int((t - sec) * 2 ** 32))
+        return bytes(32) + enc(t2) + enc(t3)
+
+    def fake_socket(self, pkt):
+        class S:
+            def __init__(self, *a):
+                self.sent = None
+
+            def settimeout(self, t):
+                pass
+
+            def sendto(self, data, addr):
+                self.sent = (data, addr)
+
+            def recvfrom(self, n):
+                return pkt, ("x", 123)
+
+            def close(self):
+                pass
+        return S
+
+    def test_sntp_offset_and_rtt_by_hand(self):
+        # T1 = 1000.0 (envoi local), T2 = 1000.55 (réception serveur), T3 = 1000.56 (émission serveur), T4 = 1000.1 (réception locale)
+        # décalage = ((T2 - T1) + (T3 - T4)) / 2 = (0.55 + 0.46) / 2 = 0.505 s ; aller-retour réseau = (T4 - T1) - (T3 - T2) = 0.1 - 0.01 = 0.09 s
+        ticks = iter([1000.0, 1000.1])
+        off, rtt = rx.ntp_offset("example.invalid", sock_factory=self.fake_socket(self.packet(1000.55, 1000.56)), clock=lambda: next(ticks))
+        self.assertAlmostEqual(off, 505.0, delta=0.05)
+        self.assertAlmostEqual(rtt, 90.0, delta=0.05)
+
+    def test_request_is_a_client_sntp_packet(self):
+        sent = {}
+
+        class S(self.fake_socket(self.packet(1.0, 1.0))):
+            def sendto(self, data, addr):
+                sent["d"], sent["a"] = data, addr
+        ticks = iter([0.0, 0.0])
+        rx.ntp_offset("example.invalid", sock_factory=S, clock=lambda: next(ticks))
+        self.assertEqual((len(sent["d"]), sent["d"][0], sent["a"][1]), (48, 0x1b, 123))      # LI 0, version 3, mode 3 ; port 123
+
+    def test_clock_check_records_ntp_and_snapshot_age(self):
+        with tempfile.TemporaryDirectory() as d:
+            pairs = rx.build_pairs(POLY, ["BTC", "ETH"], ["xyz:SP500"], ["BTC"])
+            c = Clock()
+            r = rx.XRecorder(pairs, d, 7.0, fake_poly, fake_hl, c, c.sleep)
+            r.ntp = lambda server: (-8.0, 25.0)
+            r.clock_check(n=2)
+            with open(os.path.join(r.day_dir(), "clock.jsonl"), encoding="utf-8") as f:
+                rec = json.loads(f.readline())
+            self.assertEqual((rec["ntp_offset_ms"], rec["ntp_rtt_ms"]), (-8.0, 25.0))
+            self.assertAlmostEqual(rec["hl_snapshot_age_ms"], -rec["hl_offset_ms"], places=9)
+
+    def test_health_ntp_range_by_hand(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "2026-10-09"))
+            with open(os.path.join(d, "2026-10-09", "pairs.jsonl"), "w", encoding="utf-8") as f:
+                f.write(json.dumps({"pair": "A", "poly": {"send": 1000.0}}) + "\n")
+            with open(os.path.join(d, "2026-10-09", "clock.jsonl"), "w", encoding="utf-8") as f:
+                for o in (-5.0, -12.0, -8.0):
+                    f.write(json.dumps({"hl_offset_ms": -600.0, "poly_offset_ms": -150.0, "ntp_offset_ms": o}) + "\n")
+            h = rx.health(d, 7.0, 1)
+            self.assertEqual((h["ntp_offset_range_ms"], h["ntp_offset_max_abs_ms"], h["ntp_n"]), (7.0, 12.0, 3))
+            self.assertEqual(h["snapshot_age_median_ms"], {"hl": 600.0, "poly": 150.0})      # anciens enregistrements sans champ d'âge : repli sur -décalage
+
+
 class NoSecrets(unittest.TestCase):
     def test_no_credentials_or_addresses_in_source(self):
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools", "recorder_xvenue.py"), encoding="utf-8") as f:
