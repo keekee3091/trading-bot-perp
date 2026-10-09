@@ -26,6 +26,7 @@ lève une exception, tant que backtest puis paper n'ont pas montré un Sharpe po
 | 15. Famille D : décalage avec Binance, crypto (`tools/leadlag_study.py`, `tools/fetch_binance.py`) | fait, négatif (« rien à voir ») |
 | 16. Famille E : momentum de séries temporelles sur sous-jacents non crypto (`tools/tsmom_study.py`, `tools/fetch_underlying.py`) | fait, négatif (4 critères sur 7 échouent) |
 | 17. Note de décision (`docs/DECISION_NOTE.md`) | mise à jour |
+| 26. Piste D : différence de funding entre plateformes (`tools/funding_xvenue.py`, `tools/fetch_hl.py`) | **fait : inconclusif** (+1,31 % par an, IC95 [-1,0 ; +4,7], porté par quelques actifs), lecture du holdout pré-enregistrée le 2026-12-15, rapport `docs/FUNDING_XVENUE_REPORT.md` |
 | 25. Piste C : écart entre plateformes, phase 1 (`tools/recorder_xvenue.py`) | **collecte en cours** depuis le 2026-10-08, aucune analyse, phase 2 au plus tôt le 2026-10-22 |
 | 24. Piste B : horizons longs (`tools/long_horizon.py`) | **découverte faite : aucun finaliste** (TSM 5 jours net +8,65 bps, z 0,88, instable) ; 20 et 60 jours sous-puissants ; test non lu |
 | 23. Piste A : carry de funding avec couverture (`tools/carry_study.py`) | **fait : inconclusif** (IC trop large), carry brut 4,34 % contre rf 3,79 %, rapport `docs/CARRY_REPORT.md` |
@@ -329,7 +330,7 @@ tests/                 assert-based, check.hpp (CHECK_NEAR), un exécutable par 
 legacy_py/             archive du premier jet Python, non testé, ne pas compléter
 tools/                 fetch_klines, survey_universe, sessions, signal_diagnostic, funding_diagnostic,
                        panel_stats, recorder, fetch_trades, side_semantics, premium_study, leadlag_study,
-                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study, fetch_sec, earnings_study, p1_study, passive_fills, carry_study, long_horizon, recorder_xvenue (stdlib uniquement) ;
+                       fetch_binance, fetch_underlying, tsmom_study, underlying_vs_perp, grid_stage1, grid_stage2, fetch_tiingo, stocks_study, fetch_sec, earnings_study, p1_study, passive_fills, carry_study, long_horizon, recorder_xvenue, fetch_hl, funding_xvenue (stdlib uniquement) ;
                        mm_economics : ABANDONNÉ (quotation passive)
 data/                  klines, funding, overlays instrument (CSV ignorés par git) ; data/under/ : sous-jacents longs ;
                        data/live/ : enregistreur ;
@@ -1535,6 +1536,33 @@ BH-FDR : rien ne passe. **Le test 2019-2026 et le holdout du perp n'ont pas ét�
 
 **Piste C : phase 1 (collecte) en cours depuis le 2026-10-08 ~17:05 UTC**, `tools/recorder_xvenue.py` (18 paires, un échantillon toutes les 7 secondes par paire, débit prévu 349 de poids Hyperliquid par minute et 2,6 requêtes par seconde pour Polymarket), sortie `data/xvenue/` (ignoré par git). Aucune analyse. Passage à la phase 2 au plus tôt le 2026-10-23 (les 14 jours complets commencent le 2026-10-09) si le contrôle de santé (`python tools/recorder_xvenue.py --health`) montre 14 jours consécutifs.
 **Le processus doit tourner sur une machine toujours allumée** (il s'arrête avec la session ou l'extinction du poste ; reprise automatique impossible sans planificateur) ; les trous sont comptés dans le contrôle de santé.
+
+## Pré-enregistrement : piste D, différence de funding entre plateformes (Polymarket et Hyperliquid), écrit AVANT tout résultat
+
+Écrit le 2026-10-09 (date réelle). Divulgation : en testant l'API Hyperliquid j'ai vu les 500 premières heures de funding de trois actifs (BTC +3,7 % par an, xyz:AAPL +0,5 %, xyz:GOLD +8,9 %), aucun P&L ni aucune différence entre plateformes. Famille 12. Aucun ordre réel, `LiveExchange` reste un stub, aucun signal retourné après coup.
+
+**Hypothèse H_D** : une position neutre au marché formée de deux perps du MÊME actif (short sur la plateforme où le funding moyen récent est le plus élevé, long sur l'autre) rapporte un excès net strictement positif sur le cash, après frais, spread, base entre plateformes et coût d'opportunité des deux marges. Aucune jambe sur le sous-jacent : le capital immobilisé est celui des deux marges (N/L1 + N/L2),
+bien inférieur aux 2N de la piste A.
+
+- **Univers (fixé par règle, comptes seulement)** : actifs de Polymarket appariés par NOM d'actif (`base_asset`) à Hyperliquid (dex principal ou dex HIP-3 `xyz`), avec au moins 40 jours de funding sur Polymarket avant le gel du 2026-09-28 : **38 actifs** (BTC, ETH, SOL, XRP, HYPE ; SP500, GOLD, SILVER, BRENTOIL ; 29 actions et ETF dont DRAM et STRC). **Exclus** : 44 appariements par nom avec moins de 40 jours de funding sur Polymarket (38 cryptos moins liquides, BABA, ZM, DELL, CRWV, CBRS, MRVL, CXMT, EWY, NCLD, SOXL, UNITREE) ;
+  NAS100 et WTIOIL (équivalence avec XYZ100 et CL non établie). **L'équivalence des définitions de contrat n'est vérifiée que par le nom** (DRAM, STRC, SKHY, SPCX en particulier peuvent différer d'une plateforme à l'autre) : la base entre plateformes mesure aussi cet écart de définition ; sensibilité sans ces quatre actifs.
+- **Données** : funding horaire Polymarket (`data/<SYM>_funding.csv`) et Hyperliquid (`fundingHistory`, `tools/fetch_hl.py`, `data/hl/`) ; prix : clôtures horaires Polymarket (klines 1 minute) et bougies 1 heure Hyperliquid (`candleSnapshot`, au plus 5 000 bougies) ; plus hauts et plus bas horaires pour les liquidations ; taux sans risque FRED DTB3.
+- **Règle de position** : chaque lundi 00:00 UTC, écart moyen des 14 jours PRÉCÉDENTS `(funding Hyperliquid - funding Polymarket)` annualisé ; si sa valeur absolue dépasse **theta = 2 % par an**, position (short là où le funding est le plus haut, long ailleurs) pendant la semaine suivante, sinon cash ; changement de position = sortie puis entrée.
+  Le funding est payé à chaque heure pleine par la jambe longue si le taux est positif et reçu par la jambe courte. Warm-up de 14 jours.
+- **P&L horaire par unité de notionnel N par jambe** : funding net + base (rendement de la jambe longue moins rendement de la jambe courte, prix horaires) - coûts d'entrée et de sortie - coût d'opportunité `rf x (1/L1 + 1/L2)` tant qu'une position existe. Excès annualisé sur N, temps à plat compris (le cash vaut 0 par construction).
+- **Coûts (explicites)** : Polymarket, un sens = frais taker 4 bps + slippage 2 bps + demi-spread (relevé de carnet de l'instrument, 3,5 bps par défaut) ; Hyperliquid, un sens = frais taker **4,5 bps (barème de base, palier 0, doc lue le 2026-10-08)** + slippage 2 bps + demi-spread (relevé de l'enregistreur inter-plateformes, 3,5 bps par défaut). Pour les marchés HIP-3, le barème dépend du « mode croissance » (frais de protocole réduits de 90 %) et d'une part de frais du déployeur de 0 à 300 % : **non établi pour `xyz`, sensibilité : frais Hyperliquid doublés**.
+- **Levier** : L1 = L2 = 3 en référence (distance de liquidation `1/L - mmr` par plateforme) ; sensibilités 1, 2, 5, 10. Marge non rémunérée (cas de base) et rémunérée au taux sans risque. Les transferts de marge entre plateformes ne sont pas modélisés (délais, frais de retrait et de pont non quantifiables en lecture seule).
+- **Estimateur** : moyenne sur les instruments, poids égaux ; intervalle de confiance à 95 % par bootstrap de blocs de semaines tirés pour tous les instruments à la fois (2 000 tirages).
+- **Puissance et critères (tous requis, sinon inconclusif ou négatif)** : si la largeur de l'intervalle à 95 % dépasse 2 X = 2 % par an (**X = 1,0 % par an**), la piste est inconclusive. Succès : (1) excès net poolé > X ; (2) borne basse de l'intervalle > 0 ; (3) positif dans les deux moitiés du temps ; (4) au moins 60 % des instruments positifs ; (5) le signe de la décision est celui de l'écart réalisé la semaine détenue dans au moins 60 % des semaines en position ;
+  (6) part des épisodes liquidés à L = 3 inférieure ou égale à 5 % ; (7) pire fenêtre de 30 jours de la base moyenne poolée supérieure ou égale à -3 % de N. Holdout après le 2026-09-28 (y compris l'enregistreur inter-plateformes), lu une seule fois si les critères passent : M = 10.
+- **Sensibilités non décisionnelles** : theta 0 % et 5 % ; frais Hyperliquid doublés ; crypto contre non crypto ; sans DRAM, STRC, SKHY, SPCX ; levier 1 à 10 ; marge rémunérée.
+- **Risques non modélisés, déclarés** : capital sur deux plateformes et délais de transfert, risque de contrepartie (Polymarket, Hyperliquid, déployeur HIP-3), modification des paramètres de funding par un déployeur HIP-3 (multiplicateur, intérêt), restrictions d'accès selon le pays, fiscalité.
+
+## Résultats : piste D, différence de funding entre plateformes (2026-10-09)
+
+Rapport : `docs/FUNDING_XVENUE_REPORT.md` ; fichiers `results/funding_xvenue_*.csv|txt`. **Verdict pré-enregistré : INCONCLUSIF (intervalle de 5,8 % de large pour une limite de 2 %).** 38 actifs appariés par nom ; référence (L = 3, theta 2 %) : excès net poolé **+1,31 % par an**, IC95 [-1,03 ; +4,74], moitiés +1,39 % puis -0,33 %, **16 instruments positifs sur 38**, décision confirmée dans 72 % des semaines,
+épisodes liquidés à L = 3 : 7,7 %. Critères (1), (5), (7) tenus ; (2), (3), (4), (6) échoués. **Le résultat repose sur quelques actifs** (SILVER +33,9 %, BRENTOIL, COIN, STRC) : médiane 0,0 %, sans SILVER +0,43 %, sans les trois meilleurs -0,34 % (post hoc, descriptif). Crypto seule -2,4 %. Aucun code d'exécution, holdout non lu, M reste à 9.
+**Lecture du holdout pré-enregistrée (règle gelée : 14 jours, theta 2 %, L = 3, frais inchangés) le 2026-12-15 au plus tôt, après au moins 60 jours au-delà du gel, une seule fois, mêmes critères ; M passerait à 10.** Déclaré : cette date est fixée après avoir vu les résultats de découverte, sans modifier ni la règle ni les critères.
 
 ## Hypothèses restantes (non vérifiées)
 
