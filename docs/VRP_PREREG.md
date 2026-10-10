@@ -96,4 +96,15 @@ Tout changement après le gel invalide le test et doit être déclaré. Aucun r�
 
 ## Écarts déclarés
 
-(aucun à la date du gel, 2026-10-10)
+(aucun à la date du gel, 2026-10-10.)
+
+**Précisions d'implémentation du 2026-10-10, écrites AVANT tout calcul de puissance, d'alpha ou de rendement d'un indice de stratégie** (ne changent ni les cellules, ni les critères, ni les seuils) :
+1. **Premier mois** : un rendement mensuel exige un cours de fin du mois précédent à au plus 7 jours calendaires de la fin de ce mois ; sinon le mois est écarté. PUT n'ayant de quotidien qu'à partir de 2007-01-03, son premier rendement est 2007-02 (environ 235 mois au lieu de 236).
+2. **p-value** : p unilatérale (alpha > 0) = 1 - Phi(t_NW / lambda), t_NW = alpha / erreur-type Newey-West (Bartlett, 3 retards, sans correction de petit échantillon) de S1 ; lambda = max(1, écart-type robuste des z placebos). L'IC95 de décision est le bootstrap par blocs.
+3. **Placebos centrés** : appliqués littéralement, les placebos de la section 5 conservent la moyenne positive de l'excès de l'indice, donc leurs z ne sont pas des z sous H0 et lambda serait gonflé par l'alpha lui-même. Les placebos sont donc calculés sur `excès de l'indice moins l'alpha de S1 estimé sur l'échantillon complet` (H0 vraie par construction). Le lambda littéral (non centré) est rapporté à côté, non décisionnel. Décidé avant d'avoir vu un alpha.
+4. **Seuils pire mois / drawdown** (section 9) : évalués sur la série MENSUELLE de l'indice (même base que le tableau du marché), sur l'échantillon complet de la cellule et sur la même fenêtre pour le marché (Mkt-RF + RF). Le drawdown quotidien de l'indice est rapporté en plus, non décisionnel.
+5. **Surcoût de sensibilité** : 0,115 % par point de volatilité et par mois pour PUT, PUTY, CNDR (roll mensuel, valeur ATM utilisée aussi pour PUTY et CNDR, approximation déclarée : CNDR a quatre jambes) ; 0,055 % x 52/12 = 0,2386 % par point et par mois pour WPUT. Le surcoût en points est le demi-spread de la section 6 ; l'alpha d'équilibre (surcoût qui annule l'alpha) est rapporté en points de volatilité.
+6. **Baseline aléatoire** : bêta estimé borné à [0, 1] ; calculée sur les 6 fenêtres. **Bootstrap** : IC95 pour S1 (6 fenêtres) et pour les 3 cellules hors échantillon ; S2 à S4 n'ont que le t Newey-West (leur critère porte sur le signe).
+7. **Fenêtres d'épisodes de stress** (rapport descriptif) : 1987-09 à 1987-12, 1998-08 à 1998-10, 2002-06 à 2002-10, 2008-09 à 2008-11, 2018-02, 2020-02 à 2020-03, 2022-01 à 2022-10 ; perte du pire mois de la fenêtre, perte sur 3 mois, mois de retour au sommet précédent.
+8. **Hors échantillon** : TLT par le total return ajusté Tiingo (`data/tiingo/TLT.csv`, téléchargé le 2026-10-10, 1 requête) ; RUT régressé sur Mkt-RF et SMB (alpha = ordonnée) ; BXN sur le rendement du FRED NASDAQ100 (indice de prix) ; excès = moins RF de French. Puissance calculée de la même façon.
+9. **Constat sur les dates de lancement** (recherche web du 2026-10-10, fiche Cboe) : PUTY a pour date de base 1986-06-30 et **date de lancement 2019-02-15** : tout avant est reconstruit (back-tested). Date de lancement de CNDR et de WPUT : NON VÉRIFIÉE ; PUT : quotidien seulement depuis 2007. Un alpha sur la période post-lancement de PUTY (2019-03 ->) est rapporté en descriptif.
