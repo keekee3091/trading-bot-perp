@@ -27,6 +27,7 @@ lève une exception, tant que backtest puis paper n'ont pas montré un Sharpe po
 | 16. Famille E : momentum de séries temporelles sur sous-jacents non crypto (`tools/tsmom_study.py`, `tools/fetch_underlying.py`) | fait, négatif (4 critères sur 7 échouent) |
 | 17. Note de décision (`docs/DECISION_NOTE.md`) | mise à jour |
 | 28. Piste F : calibration des marchés de prédiction Polymarket (`tools/fetch_pm.py`, `tools/pm_calibration.py`) | **fait : négatif** (vente d'outsiders -0,8 à -1,6 % par trade), achat de favoris non concluant ; test 2026 non lu ; rapport `docs/PM_CALIBRATION_REPORT.md` |
+| 29. H_VRP (prime de variance, prix réels, indices Cboe) | **phase 0 faite, pré-enregistrement en attente de validation** (`docs/VRP_DATA_INVENTORY.md`, `docs/VRP_PREREG.md` brouillon non gelé) ; aucun résultat calculé |
 | 27. Piste E : prime de variance VIX (`tools/vrp_study.py`, hors Polymarket) | **fait : critères tenus** (découverte et test 2019-2026 lu une fois, M = 10) mais alpha modeste (+0,21 % par mois, t = 1,4 sur le test) et proxys de prix, rapport `docs/VRP_REPORT.md` |
 | 26. Piste D : différence de funding entre plateformes (`tools/funding_xvenue.py`, `tools/fetch_hl.py`) | **fait : inconclusif** (+1,31 % par an, IC95 [-1,0 ; +4,7], porté par quelques actifs), lecture du holdout pré-enregistrée le 2026-12-15, rapport `docs/FUNDING_XVENUE_REPORT.md` |
 | 25. Piste C : écart entre plateformes, phase 1 (`tools/recorder_xvenue.py`) | **collecte en cours** depuis le 2026-10-08, aucune analyse, phase 2 au plus tôt le 2026-10-22 |
