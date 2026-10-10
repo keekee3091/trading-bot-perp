@@ -1,6 +1,6 @@
 # H_VRP : pré-enregistrement
 
-**BROUILLON, non gelé, à valider par l'utilisateur avant tout calcul de résultat.**
+**GELÉ le 2026-10-10 après validation des seuils par l'utilisateur.** Décision de l'utilisateur, message authentique dans la session : « Je valide les seuils » (pire mois : pas pire que 0,75 fois celui du marché sur la même fenêtre ET pas pire que -20 % absolu ; drawdown : pas pire que 0,75 fois celui du marché ET pas pire que 45 % ; on retient le plus strict) et « continue de tester ». La phase 2 (chaînes payantes) n'est PAS autorisée, aucun achat. Tout changement après ce gel figure dans la section « Écarts déclarés » en fin de document, daté, sans réécrire ce qui précède.
 
 Rédigé le 2026-10-10 (date réelle). Aucun rendement, alpha ni régression n'a été calculé sur un indice de stratégie. Seules ont été calculées des statistiques du **marché actions** (facteurs French, voir section 9) pour justifier les seuils, et des constats de dates sur les fichiers. Cadre : aucun ordre, aucun courtier, aucun compte, `LiveExchange` reste un stub. Hors Polymarket, comme la piste E. Inventaire des données : `docs/VRP_DATA_INVENTORY.md`.
 Divulgation : la piste E (`docs/VRP_REPORT.md`) a déjà mesuré sur des **prix simulés** une prime de variance et un alpha après bêta (put garanti : +0,32 % par mois, t = 4,8 en découverte, +0,21 %, t = 1,4 en test 2019-2026 ; straddle : +0,32 % puis +0,25 %). Les sous-périodes 2019-2026 des indices Cboe recoupent donc en partie des mois déjà vus (marché et VIX identiques) : **ce n'est pas un temps neuf** ; le temps neuf est le suivi prospectif (section 8).
@@ -72,7 +72,7 @@ H_VRP phase 1 est **acceptée** seulement si tous les critères sont tenus, sur 
 - **Sous-jacents jamais utilisés par la piste E** : RUT (PUTR, 2001-01 ->), TLT (PTLT, 2005-01 ->), NDX (BXN, covered call 2009-09 ->, **non put-write** : même exposition par parité, déclaré). **3 cellules de décision**, règle gelée identique à S1 (régression sur le rendement excédentaire du **sous-jacent propre** : TLT via Tiingo total return, NDX via `FRED_NASDAQ100` indice de prix, RUT via Mkt-RF et SMB de French faute de série de prix RUT vérifiée, déclaré), échantillon complet, signe de l'alpha et IC95 rapportés. EEM et or **non testés** (accès non établi, voir inventaire). Critère 7 : signe de l'alpha identique à celui de la phase 1 pour au moins 2 des 3.
 - **Suivi prospectif** : chaque fin de mois à partir de **2026-09** (septembre 2026 et après, hors des facteurs French actuels), enregistrer les valeurs des 4 indices de la phase 1 (téléchargement unique par mois, même conditions) et les facteurs French du mois dès publication. **Première lecture le 2027-04-01 au plus tôt** (septembre 2026 à février 2027, environ 6 mois), **lecture unique à cette date, descriptive** : signe de l'alpha cumulé et excès moyen ; avec 6 mois et un écart-type de 3 %, le MDE mensuel est de l'ordre de 3,4 % par mois, donc **aucune décision statistique avant au moins 36 mois (2029-10)** ; une lecture décisionnelle ultérieure doit être pré-enregistrée à part. Aucune lecture intermédiaire.
 
-## 9. Seuils proposés pour le pire mois et le drawdown (à valider par l'utilisateur)
+## 9. Seuils du pire mois et du drawdown (validés par l'utilisateur le 2026-10-10)
 
 Justification sans aucun calcul sur les indices de stratégie : statistiques du **marché** (Mkt-RF + RF de French, total américain) sur les mêmes fenêtres.
 | Fenêtre | Mois | Écart-type mensuel du marché | Pire mois du marché | 5e centile mensuel | Drawdown maximal du marché |
@@ -81,15 +81,19 @@ Justification sans aucun calcul sur les indices de stratégie : statistiques du 
 | 2007-01 -> 2026-08 | 236 | 4,57 % | -17,1 % | -7,9 % | 50,3 % |
 | 2007-01 -> 2018-12 | 144 | 4,33 % | -17,1 % | -7,7 % | 50,3 % |
 | 2020-01 -> 2026-08 | 80 | 5,03 % | -13,2 % | -8,0 % | 24,8 % |
-Argument : une vente de put à la monnaie a un delta de l'ordre de 0,5 (Black-Scholes, donc un bêta attendu proche de 0,5 sans lire la série) ; un seuil de **0,75 fois le marché** laisse une marge de 50 % sur ce bêta pour la convexité et la reconstruction des prix. Seuils proposés, **le plus strict des deux** :
+Argument : une vente de put à la monnaie a un delta de l'ordre de 0,5 (Black-Scholes, donc un bêta attendu proche de 0,5 sans lire la série) ; un seuil de **0,75 fois le marché** laisse une marge de 50 % sur ce bêta pour la convexité et la reconstruction des prix. Seuils validés, **le plus strict des deux** :
 - **Pire mois** : pas pire que **0,75 x le pire mois du marché sur la même fenêtre** (soit -17,0 % sur 1986-2026, -12,8 % sur 2007-2026), et jamais pire que **-20 %** en valeur absolue (valeur fixe de la piste E).
 - **Drawdown maximal** : pas pire que **0,75 x le drawdown du marché** (soit 37,7 % sur ces fenêtres) et jamais pire que **45 %** (valeur de la piste E).
 Conséquence assumée à l'avance : une stratégie qui, comme le marché, subit près de -23 % en octobre 1987 ou -17 % en octobre 2008 avec un bêta supérieur à 0,75 **échoue** ce critère ; c'est le but. Les seuils sont des critères d'acceptation, pas des paramètres à ajuster après la lecture.
 
 ## 10. Calendrier et verrous
 
-1. Validation de ce brouillon par l'utilisateur (puissance, seuils, M, cellules) ; gel daté et signé dans `CLAUDE.md`.
+1. Validation par l'utilisateur (faite le 2026-10-10) ; gel daté dans `CLAUDE.md`.
 2. Phase 1, étape 0 : calcul de la puissance (variance seulement), fichier écrit, verrou ; tests de plomberie et contrôle positif.
 3. Phase 1, étape 1 : 96 estimations, lecture unique des quatre cellules de décision (verrou contre une seconde lecture).
 4. Hors échantillon, puis éventuelle décision d'achat, puis suivi prospectif (première lecture au plus tôt le 2027-04-01).
 Tout changement après le gel invalide le test et doit être déclaré. Aucun résultat n'a été calculé à la date de rédaction (2026-10-10).
+
+## Écarts déclarés
+
+(aucun à la date du gel, 2026-10-10)
