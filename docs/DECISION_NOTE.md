@@ -34,6 +34,8 @@ positif en test : la correction n'a jamais été le facteur décisif. Détails, 
 « Résultat de la validation », « Résultats : famille B », « Résultats : market making » et « Résultats : familles C et
 D » de `CLAUDE.md` ; rapports bruts dans `results/`.
 
+**H_VRP, indices de stratégie Cboe à prix réels (2026-10-10, `docs/VRP_REPORT.md`, section « données réelles »)** : phase 1 non acceptée. Alpha après bêta de -0,15 à +0,11 % par mois, aucun IC95 bootstrap n'excluant zéro (PUT inconclusif par sous-puissance, PUTY et CNDR inconclusifs, WPUT négatif). Les put-write échouent le seuil validé du pire mois (octobre 2008 : -17,7 % contre -17,1 % pour le marché) ; la simulation Black-Scholes de la piste E surestimait la prime de 0,1 à 0,35 % par mois. Phase 2 (chaînes payantes) non autorisée, rien acheté. M = 11 (12 avec le hors échantillon). Suivi prospectif : première lecture au plus tôt le 2027-04-01.
+
 ## Pourquoi rien ne marche (diagnostics mesurés)
 
 - **Pas d'edge brut sur le momentum.** Le rendement futur signé après un signal momentum est de -3 à +0.6 bps (|t| < 2

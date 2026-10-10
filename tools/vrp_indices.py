@@ -544,7 +544,7 @@ def bridge_e(data, ff, ret, cells):
         ms = vs.months(vix, spy, rf, hc, 0.005)
         for name, _ in CELLS:
             rows = [r for r in cells[name]["rows"] if r["ym"] >= 199303]
-            e = [m for m in ms if 199303 <= m["d1"].year * 100 + m["d1"].month <= 202608]
+            e = [m for m in ms if rows[0]["ym"] <= m["d1"].year * 100 + m["d1"].month <= 202608]
             fi = fit([r["y"] for r in rows], [[r["mkt"] for r in rows]])
             b_e, a_e, _ = vs.alpha_beta(e, "e1", 1.0)
             out.append({"index": name, "piste_E": lab, "n_index": len(rows), "n_E": len(e), "mean_index": statistics.fmean(r["y"] for r in rows),
@@ -574,14 +574,24 @@ def placebo2_mode(data, out, seed=20261011):
     print(out_txt)
 
 
+def bridge_mode(data, out):
+    """Pont avec la piste E seul (descriptif, fenêtre alignée sur le premier mois de chaque indice) ; sans verrou."""
+    ff, ret = load_all(data)
+    cells = {n: {"rows": build_rows(ret[n], ff)} for n, _ in CELLS}
+    rows = bridge_e(data, ff, ret, cells)
+    write_csv(os.path.join(out, "vrp_real_bridge.csv"), rows)
+    for r in rows:
+        print(r)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", choices=["power", "run", "placebo2"], required=True)
+    ap.add_argument("--mode", choices=["power", "run", "placebo2", "bridge"], required=True)
     ap.add_argument("--data", default="data")
     ap.add_argument("--out", default="results")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    {"power": power_mode, "run": run_mode, "placebo2": placebo2_mode}[a.mode](a.data, a.out)
+    {"power": power_mode, "run": run_mode, "placebo2": placebo2_mode, "bridge": bridge_mode}[a.mode](a.data, a.out)
 
 
 if __name__ == "__main__":
